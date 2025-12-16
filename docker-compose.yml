@@ -1,0 +1,35 @@
+version: "3.9"
+
+services:
+  api:
+    build: .
+    container_name: sentineliq_api
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+
+  postgres:
+    image: postgres:15
+    container_name: sentineliq_postgres
+    environment:
+      POSTGRES_USER: sentineliq
+      POSTGRES_PASSWORD: sentineliq
+      POSTGRES_DB: sentineliq
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: sentineliq_redis
+    ports:
+      - "6379:6379"
+
+volumes:
+  pgdata:
