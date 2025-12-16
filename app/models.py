@@ -1,0 +1,41 @@
+from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, DateTime, JSON
+from sqlalchemy.orm import declarative_base, relationship
+from datetime import datetime
+import uuid
+
+Base = declarative_base()
+
+def generate_uuid():
+    return str(uuid.uuid4())
+
+class Organization(Base):
+    __tablename__ = "organizations"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    name = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    users = relationship("User", back_populates="organization")
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    org_id = Column(String, ForeignKey("organizations.id"))
+    first_name = Column(String, nullable=False)
+    last_name = Column(String, nullable=False)
+    email = Column(String, unique=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    role = Column(String, default="viewer")  # admin, analyst, viewer
+    risk_score = Column(Integer, default=0)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    
+    organization = relationship("Organization", back_populates="users")
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    actor_id = Column(String, ForeignKey("users.id"))
+    action = Column(String, nullable=False)
+    target = Column(String, nullable=True)
+    metadata = Column(JSON, default={})
+    timestamp = Column(DateTime, default=datetime.utcnow)
