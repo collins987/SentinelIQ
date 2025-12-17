@@ -37,5 +37,5 @@ class AuditLog(Base):
     actor_id = Column(String, ForeignKey("users.id"))
     action = Column(String, nullable=False)
     target = Column(String, nullable=True)
-    metadata = Column(JSON, default={})
+    event_metadata = Column(JSON, default={})
     timestamp = Column(DateTime, default=datetime.utcnow)

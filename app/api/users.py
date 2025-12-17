@@ -43,7 +43,7 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
         actor_id=db_user.id,
         action="user.created",
         target=db_user.id,
-        metadata={"email": db_user.email}
+        event_metadata={"email": db_user.email}
     )
     db.add(audit)
     db.commit()
