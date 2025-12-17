@@ -6,4 +6,4 @@ python-jose
 passlib[bcrypt]
 redis
 prometheus-client
-pydantic
+pydantic[email]
