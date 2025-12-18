@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 from app.core.db import SessionLocal
 from app.models import User, AuditLog
@@ -18,7 +18,11 @@ class UserCreate(BaseModel):
     first_name: str
     last_name: str
     email: EmailStr
-    password: str
+    password: str = Field(
+        min_length=8,
+        max_length=72,
+        description="Password must be between 8 and 72 characters"
+    )
     role: str = "viewer"
 
 @router.post("/")
