@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   api:
     build:
@@ -27,9 +25,9 @@ services:
     image: postgres:15-alpine
     container_name: sentineliq_postgres
     environment:
-      POSTGRES_USER: sentineliq
-      POSTGRES_PASSWORD: sentineliq
-      POSTGRES_DB: sentineliq
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
