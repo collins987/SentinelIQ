@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from app.api import users, auth
-from app.core.db import init_db
+from app.core.db import init_db, SessionLocal, engine
 from prometheus_client import make_asgi_app
+from app.models import Base
+from app.core.seed import seed_default_org
 import time
 
 app = FastAPI(
@@ -14,6 +16,14 @@ app.include_router(auth.router)
 
 init_db()
 
+@app.on_event("startup")
+def startup():
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        seed_default_org(db)
+    finally:
+        db.close()
 
 @app.get("/health")
 def health_check():
