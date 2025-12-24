@@ -1,6 +1,17 @@
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
 
+class UserCreate(BaseModel):
+    first_name: str
+    last_name: str
+    email: EmailStr
+    password: str = Field(
+        min_length=8,
+        max_length=72,
+        description="Password must be between 8 and 72 characters"
+    )
+    role: str = "viewer"
+
 class UserOut(BaseModel):
     id: str
     org_id: str | None
@@ -14,4 +25,5 @@ class UserOut(BaseModel):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+    from_attributes = True
+

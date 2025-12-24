@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
+from app.schemas.user import UserCreate
 from app.core.db import SessionLocal
 from app.models import User, AuditLog
 from app.core.security import hash_password
@@ -14,17 +15,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
-class UserCreate(BaseModel):
-    first_name: str
-    last_name: str
-    email: EmailStr
-    password: str = Field(
-        min_length=8,
-        max_length=72,
-        description="Password must be between 8 and 72 characters"
-    )
-    role: str = "viewer"
 
 @router.post("/", status_code=201)
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
