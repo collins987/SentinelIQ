@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.api import users
+from app.api import users, auth
 from app.core.db import init_db
 from prometheus_client import make_asgi_app
 import time
@@ -10,6 +10,7 @@ app = FastAPI(
     version="0.1.1"
 )
 app.include_router(users.router)
+app.include_router(auth.router)
 
 init_db()
 
