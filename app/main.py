@@ -1,9 +1,9 @@
 from fastapi import FastAPI
-from app.api import users, auth
+from app.api import users as api_users, auth
 from app.core.db import init_db, SessionLocal, engine
 from prometheus_client import make_asgi_app
 from app.models import Base
-from app.routes import users, admin
+from app.routes import users as route_users, admin
 from app.core.seed import seed_default_org
 import time
 
@@ -11,7 +11,9 @@ app = FastAPI(
     title="SentinelIQ",
     description="Fintech Risk & Security Intelligence Platform"
 )
-app.include_router(users.router, prefix="/users", tags=["Users"])
+
+app.include_router(api_users.router, prefix="/users", tags=["Users API"])
+app.include_router(route_users.router, prefix="/users", tags=["Users Routes"])
 app.include_router(admin.router, prefix="/admin", tags=["Admin"])
 app.include_router(auth.router)
 
