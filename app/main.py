@@ -3,6 +3,7 @@ from app.api import users, auth
 from app.core.db import init_db, SessionLocal, engine
 from prometheus_client import make_asgi_app
 from app.models import Base
+from app.routes import users, admin
 from app.core.seed import seed_default_org
 import time
 
@@ -11,7 +12,8 @@ app = FastAPI(
     description="Fintech Risk & Security Intelligence Platform",
     version="0.1.1"
 )
-app.include_router(users.router)
+app.include_router(users.router, prefix="/users", tags=["Users"])
+app.include_router(admin.router, prefix="/admin", tags=["Admin"])
 app.include_router(auth.router)
 
 init_db()
