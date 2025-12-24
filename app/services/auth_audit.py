@@ -1,7 +1,7 @@
 from app.models import AuditLog
-from app.database import get_db
 from sqlalchemy.orm import Session
 from datetime import datetime
+import uuid
 
 def log_auth_attempt(user_id: str, action: str, db: Session, success: bool, metadata: dict = {}):
     log = AuditLog(
