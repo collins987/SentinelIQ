@@ -13,7 +13,7 @@ app = FastAPI(
 )
 
 app.include_router(users.router)
-app.include_router(admin.router, prefix="/admin", tags=["Admin"])
+app.include_router(admin.router)
 app.include_router(auth.router)
 
 init_db()
