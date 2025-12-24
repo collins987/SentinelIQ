@@ -38,7 +38,7 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
             last_name=user.last_name,
             email=user.email,
             password_hash=hash_password(user.password),  # ✅ correct
-            role=user.role
+            role=user.role,
             org_id=DEFAULT_ORG_ID
         )
 
