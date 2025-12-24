@@ -9,8 +9,7 @@ import time
 
 app = FastAPI(
     title="SentinelIQ",
-    description="Fintech Risk & Security Intelligence Platform",
-    version="0.1.1"
+    description="Fintech Risk & Security Intelligence Platform"
 )
 app.include_router(users.router, prefix="/users", tags=["Users"])
 app.include_router(admin.router, prefix="/admin", tags=["Admin"])
