@@ -5,4 +5,4 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 
 @router.get("/dashboard")
 def admin_dashboard(current_user = Depends(require_role("admin"))):
-    return {"msg": f"Welcome, {current_user.first_name}!"}
+    return {"msg": f"Welcome to the Admin Dashboard, {current_user.first_name}!"}
