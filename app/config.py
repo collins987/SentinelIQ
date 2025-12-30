@@ -15,7 +15,7 @@ PASSWORD_RESET_TOKEN_EXPIRE_MINUTES = 30  # 30 minutes (short for security)
 
 # Email Configuration (Step 5)
 EMAIL_FROM = os.getenv("EMAIL_FROM", "no-reply@sentineliq.local")
-SMTP_HOST = os.getenv("SMTP_HOST", "mailhog")  # Docker service name
+SMTP_HOST = os.getenv("SMTP_HOST", "localhost")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "1025"))  # MailHog default
 SMTP_USERNAME = os.getenv("SMTP_USERNAME", None)
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", None)
