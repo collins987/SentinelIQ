@@ -2,10 +2,8 @@ from datetime import datetime, timedelta
 from jose import jwt
 from passlib.context import CryptContext
 import os
-
-SECRET_KEY = os.getenv("SECRET_KEY", "change-me")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+import secrets
+from app.config import ALGORITHM, SECRET_KEY, REFRESH_TOKEN_EXPIRE_DAYS, ACCESS_TOKEN_EXPIRE_MINUTES
 
 pwd_context = CryptContext(
     schemes=["bcrypt"],
@@ -23,3 +21,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+def create_refresh_token() -> str:
+    """Generate a secure refresh token"""
+    return secrets.token_urlsafe(32)

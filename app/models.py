@@ -39,3 +39,20 @@ class AuditLog(Base):
     target = Column(String, nullable=True)
     event_metadata = Column(JSON, default={})
     timestamp = Column(DateTime, default=datetime.utcnow)
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    token = Column(String, nullable=False, unique=True)
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    is_revoked = Column(Boolean, default=False)
+
+class LoginAttempt(Base):
+    __tablename__ = "login_attempts"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    email = Column(String, nullable=False)
+    ip_address = Column(String, nullable=True)
+    success = Column(Boolean, default=False)
+    timestamp = Column(DateTime, default=datetime.utcnow)
