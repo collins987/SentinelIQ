@@ -1,11 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from app.api import auth
 from app.routes import users, admin, email_verification, password_reset, analytics
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.request_logging import RequestLoggingMiddleware, UserTrackingMiddleware
 from app.core.db import init_db, SessionLocal, engine
-from prometheus_client import make_asgi_app
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST, REGISTRY
 from app.models import Base
 from app.core.seed import seed_default_org
 from app.core.logging import logger
@@ -54,6 +54,10 @@ def shutdown():
 def health_check():
     return {"status": "ok"}
 
-# Prometheus metrics - must be mounted before routes
-metrics_app = make_asgi_app()
-app.mount("/metrics", metrics_app)
+@app.get("/metrics", include_in_schema=False)
+def get_metrics():
+    """Prometheus metrics endpoint - returns metrics in text/plain format"""
+    return Response(
+        content=generate_latest(REGISTRY),
+        media_type=CONTENT_TYPE_LATEST
+    )
