@@ -23,3 +23,52 @@ SMTP_TLS = os.getenv("SMTP_TLS", "false").lower() == "true"
 
 # Frontend configuration for email links
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000")
+
+# MILESTONE 7: Role-Based Access Control (RBAC)
+# Role hierarchy: admin > analyst > viewer
+ROLES = {
+    "admin": {
+        "description": "Full system access - manage users, settings, audit logs",
+        "permissions": [
+            "admin.dashboard",
+            "admin.disable_user",
+            "admin.enable_user",
+            "admin.view_audit_logs",
+            "admin.manage_organization",
+            "users.create",
+            "users.read_all",
+            "users.update_any",
+            "users.delete_any",
+            "analytics.read",
+            "analytics.write",
+            "profile.read_own",
+            "profile.update_own",
+        ]
+    },
+    "analyst": {
+        "description": "Data analysis access - read/write analysis, view reports",
+        "permissions": [
+            "analytics.read",
+            "analytics.write",
+            "analytics.export",
+            "profile.read_own",
+            "profile.update_own",
+            "users.read_own_org",
+        ]
+    },
+    "viewer": {
+        "description": "Read-only access - view own profile and limited data",
+        "permissions": [
+            "profile.read_own",
+            "profile.update_own",
+        ]
+    }
+}
+
+# Permission-to-role mapping (reverse lookup)
+PERMISSION_ROLES = {}
+for role, config in ROLES.items():
+    for permission in config.get("permissions", []):
+        if permission not in PERMISSION_ROLES:
+            PERMISSION_ROLES[permission] = []
+        PERMISSION_ROLES[permission].append(role)
