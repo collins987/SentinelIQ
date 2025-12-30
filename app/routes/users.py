@@ -8,7 +8,10 @@ from app.dependencies import get_current_user, get_db
 from app.schemas.user import UserCreate, UserOut
 from app.models import User, AuditLog
 from app.core.security import hash_password
-from app.services.email_service import create_verification_token, send_verification_email
+from app.services.token_service import generate_email_token
+from app.services.email_service import send_email
+from app.services.template_service import render_template
+from app.config import FRONTEND_BASE_URL
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -36,9 +39,27 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_user)
     
-    # MILESTONE 6: Send verification email
-    verification_token = create_verification_token(db_user.id, db)
-    send_verification_email(db_user, verification_token)
+    # MILESTONE 6: Send verification email with token
+    verification_token = generate_email_token(
+        user_id=db_user.id,
+        purpose="email_verification",
+        db=db
+    )
+    
+    # Render and send verification email
+    verification_url = f"{FRONTEND_BASE_URL}/verify-email?token={verification_token}"
+    html = render_template(
+        "email_verification.html",
+        {
+            "first_name": db_user.first_name,
+            "verification_url": verification_url,
+        }
+    )
+    send_email(
+        to=db_user.email,
+        subject="Verify your SentinelIQ account",
+        html_content=html
+    )
     
     # Audit log
     audit = AuditLog(
