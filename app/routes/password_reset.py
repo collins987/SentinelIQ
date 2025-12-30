@@ -19,7 +19,7 @@ from app.models import User, AuditLog, RefreshToken
 from app.services.token_service import generate_email_token, verify_email_token
 from app.services.email_service import send_email
 from app.services.template_service import render_template
-from app.core.security import get_password_hash
+from app.core.security import hash_password
 from app.config import FRONTEND_BASE_URL
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -138,7 +138,7 @@ def confirm_password_reset(
         raise HTTPException(status_code=404, detail="User not found")
     
     # Update password (bcrypt hashed)
-    user.password_hash = get_password_hash(payload.new_password)
+    user.password_hash = hash_password(payload.new_password)
     user.updated_at = datetime.utcnow()
     db.commit()
     
