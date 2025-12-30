@@ -26,6 +26,7 @@ class User(Base):
     role = Column(String, default="viewer")  # admin, analyst, viewer
     risk_score = Column(Integer, default=0)
     is_active = Column(Boolean, default=True)
+    email_verified = Column(Boolean, default=False)  # NEW: Email verification status
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
     
@@ -56,3 +57,19 @@ class LoginAttempt(Base):
     ip_address = Column(String, nullable=True)
     success = Column(Boolean, default=False)
     timestamp = Column(DateTime, default=datetime.utcnow)
+
+class EmailToken(Base):
+    """
+    Secure email tokens for email verification and password reset.
+    Tokens are hashed before storage (never stored in plaintext).
+    Single-use, time-limited, purpose-locked.
+    """
+    __tablename__ = "email_tokens"
+    
+    id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    token_hash = Column(String, nullable=False, unique=True)  # SHA256 hash of token
+    purpose = Column(String, nullable=False)  # "email_verification" | "password_reset"
+    expires_at = Column(DateTime, nullable=False)
+    is_used = Column(Boolean, default=False)  # Enforce single-use
+    created_at = Column(DateTime, default=datetime.utcnow)
