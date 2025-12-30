@@ -144,7 +144,7 @@ services:
 
   # HashiCorp Vault - Secret management
   vault:
-    image: vault:latest
+    image: hashicorp/vault:1.15.0
     container_name: sentineliq_vault
     environment:
       VAULT_DEV_ROOT_TOKEN_ID: devroot
