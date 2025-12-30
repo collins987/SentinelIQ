@@ -4,7 +4,7 @@ BASE_URL="http://localhost:8000"
 DB_NAME="sentineliq"
 DB_USER="sentineliq"
 
-USER_EMAIL="test-$(date +%s)@example.com"
+USER_EMAIL="vinnycollo1@gmail.com"
 USER_PASSWORD="StrongPass123!"
 NEW_PASSWORD="NewStrongPass456!"
 
