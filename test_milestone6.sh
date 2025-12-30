@@ -78,11 +78,15 @@ echo ""
 echo "==============================="
 echo "3️⃣ Verify email..."
 echo "==============================="
-VERIFY_RESP=$(curl -s -X POST "$BASE_URL/auth/verify-email?token=$TOKEN_HASH")
-echo "$VERIFY_RESP" | jq .
+VERIFY_RESP=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/auth/verify-email?token=$TOKEN_HASH")
+HTTP_CODE=$(echo "$VERIFY_RESP" | tail -n1)
+VERIFY_BODY=$(echo "$VERIFY_RESP" | sed '$d')
 
-if echo "$VERIFY_RESP" | jq -e '.detail' &>/dev/null; then
-  echo "❌ Email verification failed"
+echo "$VERIFY_BODY" | jq . 2>/dev/null || echo "$VERIFY_BODY"
+
+if [ "$HTTP_CODE" != "200" ]; then
+  echo "❌ Email verification failed (HTTP $HTTP_CODE)"
+  echo "Response: $VERIFY_BODY"
   exit 1
 fi
 
