@@ -54,6 +54,6 @@ def shutdown():
 def health_check():
     return {"status": "ok"}
 
-# Prometheus metrics
+# Prometheus metrics - must be mounted before routes
 metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)
