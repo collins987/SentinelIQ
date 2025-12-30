@@ -1,8 +1,14 @@
 # app/config.py
 import os
+import logging
 
 SECRET_KEY = os.getenv("SECRET_KEY", "supersecretkey")
 ALGORITHM = "HS256"
+
+# MILESTONE 8: Logging Configuration
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+# Map string to logging level
+LOG_LEVEL = getattr(logging, LOG_LEVEL.upper(), logging.INFO)
 ACCESS_TOKEN_EXPIRE_MINUTES = 30  # Short-lived access token
 REFRESH_TOKEN_EXPIRE_DAYS = 7  # Longer-lived refresh token
 MAX_SESSIONS_PER_USER = 3  # Limit concurrent sessions
