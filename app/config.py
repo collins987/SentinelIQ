@@ -78,3 +78,48 @@ for role, config in ROLES.items():
         if permission not in PERMISSION_ROLES:
             PERMISSION_ROLES[permission] = []
         PERMISSION_ROLES[permission].append(role)
+
+# ============================================================================
+# MILESTONE 1 & 2: Event-Driven Risk Engine Configuration
+# ============================================================================
+
+# Redis Configuration
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+
+# Event Streams
+EVENT_STREAM_NAME = "sentineliq:events"
+RISK_STREAM_NAME = "sentineliq:risk_decisions"
+ALERT_STREAM_NAME = "sentineliq:alerts"
+
+# Risk Engine
+RISK_ENGINE_RULES_PATH = os.getenv("RISK_RULES_PATH", "/app/rules/fraud_rules.yaml")
+RISK_ENGINE_ENABLED = os.getenv("RISK_ENGINE_ENABLED", "true").lower() == "true"
+RISK_DECISION_LATENCY_SLA_MS = 200  # Target decision time
+
+# MinIO/S3 Configuration (for immutable audit logs)
+MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio:9000")
+MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
+MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "minioadmin")
+MINIO_BUCKET = os.getenv("MINIO_BUCKET", "sentineliq-audit-logs")
+MINIO_SECURE = os.getenv("MINIO_SECURE", "false").lower() == "true"
+
+# Vault Configuration (secret management)
+VAULT_ADDR = os.getenv("VAULT_ADDR", "http://vault:8200")
+VAULT_TOKEN = os.getenv("VAULT_TOKEN", "devroot")
+VAULT_SECRET_PATH = os.getenv("VAULT_SECRET_PATH", "secret/data/sentineliq")
+
+# Metrics
+METRICS_ENABLED = os.getenv("METRICS_ENABLED", "true").lower() == "true"
+PROMETHEUS_METRICS_PORT = int(os.getenv("PROMETHEUS_METRICS_PORT", "8001"))
+
+# Observability
+LOKI_ENABLED = os.getenv("LOKI_ENABLED", "true").lower() == "true"
+LOKI_URL = os.getenv("LOKI_URL", "http://loki:3100")
+
+# Risk Thresholds
+RISK_THRESHOLDS = {
+    "allow": 0.0,      # Risk score < 0.30
+    "review": 0.30,    # 0.30 - 0.60
+    "challenge": 0.60, # 0.60 - 0.80
+    "block": 0.80      # >= 0.80
+}
