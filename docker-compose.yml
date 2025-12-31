@@ -136,14 +136,21 @@ services:
     container_name: sentineliq_loki
     ports:
       - "3100:3100"
+    user: "0:0"  # Run as root on Ubuntu to ensure directory creation permissions
     command: -config.file=/etc/loki/local-config.yml
     volumes:
       - ./monitoring/loki-config.yml:/etc/loki/local-config.yml:ro
       - loki_data:/loki
-      - /tmp/loki:/var/loki
-      - /tmp/loki/wal:/wal
+      - loki_compactor:/var/loki
+      - loki_wal:/wal
     environment:
       - LOKI_COMPACTOR_SHARED_STORE=filesystem
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
     networks:
       - backend
@@ -200,6 +207,8 @@ volumes:
   prometheus_data:
   grafana_data:
   loki_data:
+  loki_compactor:
+  loki_wal:
   vault_data:
 
 networks:
