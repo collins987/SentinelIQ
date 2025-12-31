@@ -116,7 +116,9 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
-      GF_INSTALL_PLUGINS: grafana-piechart-panel
+      GF_INSTALL_PLUGINS: ""
+      GF_PLUGIN_ALLOW_UNSIGNED_PLUGINS: "true"
+      GF_PLUGINS_ALLOW_UI_UPDATES: "false"
     ports:
       - "3001:3000"
     volumes:

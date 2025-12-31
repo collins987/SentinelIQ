@@ -17,6 +17,9 @@ app = FastAPI(
     description="Fintech Risk & Security Intelligence Platform"
 )
 
+# Initialize Prometheus instrumentator BEFORE middleware setup
+Instrumentator().instrument(app).expose(app)
+
 # MILESTONE 8: Logging and request tracking middleware
 app.add_middleware(UserTrackingMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
@@ -39,9 +42,6 @@ init_db()
 
 @app.on_event("startup")
 def startup():
-    # Initialize Prometheus instrumentator for FastAPI metrics
-    Instrumentator().instrument(app).expose(app)
-    
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
