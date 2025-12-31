@@ -6,6 +6,7 @@ from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.request_logging import RequestLoggingMiddleware, UserTrackingMiddleware
 from app.core.db import init_db, SessionLocal, engine
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST, REGISTRY
+from prometheus_fastapi_instrumentator import Instrumentator
 from app.models import Base
 from app.core.seed import seed_default_org
 from app.core.logging import logger
@@ -38,6 +39,9 @@ init_db()
 
 @app.on_event("startup")
 def startup():
+    # Initialize Prometheus instrumentator for FastAPI metrics
+    Instrumentator().instrument(app).expose(app)
+    
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:

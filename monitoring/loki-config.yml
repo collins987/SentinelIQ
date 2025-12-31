@@ -1,20 +1,23 @@
-# Loki configuration for log aggregation
+# Loki configuration for log aggregation - compatible across versions
 
 auth_enabled: false
 
-ingester:
-  chunk_idle_period: 3m
-  chunk_retain_period: 1m
-  max_chunk_age: 1h
-  max_streams_limit_per_user: 100
-  flush_op_timeout: 10s
+server:
+  http_listen_port: 3100
+  log_level: info
 
-limits_config:
-  enforcement_enabled: false
+ingester:
+  lifecycler:
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+  chunk_idle_period: 1h
+  chunk_retain_period: 30s
 
 schema_config:
   configs:
-    - from: 2020-10-24
+    - from: 2023-01-01
       store: boltdb-shipper
       object_store: filesystem
       schema: v11
@@ -22,16 +25,17 @@ schema_config:
         prefix: index_
         period: 24h
 
-server:
-  http_listen_port: 3100
-  log_level: info
-
 storage_config:
   boltdb_shipper:
-    active_index_directory: /loki/boltdb-shipper-active
-    shared_store: filesystem
+    active_index_directory: /loki/index
+    cache_location: /loki/cache
   filesystem:
     directory: /loki/chunks
 
-chunk_store_config:
-  max_look_back_period: 0s
+limits_config:
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+
+table_manager:
+  retention_deletes_enabled: false
+  retention_period: 0s
