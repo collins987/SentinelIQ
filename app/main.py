@@ -61,7 +61,11 @@ def health_check():
 @app.get("/metrics", include_in_schema=False)
 def get_metrics():
     """Prometheus metrics endpoint - returns metrics in text/plain format"""
+    metrics_output = generate_latest(REGISTRY)
+    # Ensure proper encoding if bytes are returned
+    if isinstance(metrics_output, bytes):
+        metrics_output = metrics_output.decode('utf-8')
     return Response(
-        content=generate_latest(REGISTRY),
-        media_type=CONTENT_TYPE_LATEST
+        content=metrics_output,
+        media_type="text/plain; version=0.0.4; charset=utf-8"
     )

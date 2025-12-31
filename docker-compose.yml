@@ -140,6 +140,10 @@ services:
     volumes:
       - ./monitoring/loki-config.yml:/etc/loki/local-config.yml:ro
       - loki_data:/loki
+      - /tmp/loki:/var/loki
+      - /tmp/loki/wal:/wal
+    environment:
+      - LOKI_COMPACTOR_SHARED_STORE=filesystem
     restart: unless-stopped
     networks:
       - backend
