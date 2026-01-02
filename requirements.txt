@@ -10,6 +10,8 @@ prometheus-client==0.20.0
 prometheus-fastapi-instrumentator==6.1.0
 pydantic[email]==2.6.4
 jinja2==3.1.2
+# GraphQL support
+strawberry-graphql[fastapi]==0.234.0
 # YAML rule configuration
 PyYAML==6.0.1
 # Structured JSON logging
