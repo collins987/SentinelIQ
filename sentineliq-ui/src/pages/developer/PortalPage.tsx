@@ -3,7 +3,7 @@ import { DashboardLayout } from '@/layouts'
 import { Card, Badge } from '@tremor/react'
 import { mockAPIKeys, mockWebhooks } from '@/mockData'
 
-const mockWebhooks = [
+const localMockWebhooks = [
   {
     id: 'wh_001',
     timestamp: '2025-01-02T10:30:00Z',
@@ -118,9 +118,9 @@ export const DeveloperPortalPage: React.FC = () => {
                     <div className="flex items-center gap-2 mb-1">
                       <p className="font-semibold">{key.name}</p>
                       {key.isActive ? (
-                        <Badge text="Active" color="green" />
+                        <Badge variant="success">Active</Badge>
                       ) : (
-                        <Badge text="Inactive" color="gray" />
+                        <Badge variant="neutral">Inactive</Badge>
                       )}
                     </div>
                     <p className="text-xs font-mono text-gray-600 dark:text-gray-400 break-all">
@@ -154,7 +154,7 @@ export const DeveloperPortalPage: React.FC = () => {
           <h3 className="text-lg font-semibold mb-4">Webhook Replay Console</h3>
 
           <div className="space-y-3">
-            {mockWebhooks.map((webhook) => (
+            {localMockWebhooks.map((webhook) => (
               <div
                 key={webhook.id}
                 className={`p-4 border rounded-lg ${

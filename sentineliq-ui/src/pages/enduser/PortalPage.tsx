@@ -107,9 +107,9 @@ export const EndUserPortalPage: React.FC = () => {
                     <div className="flex items-center gap-2 mb-2">
                       <p className="font-semibold">{session.device}</p>
                       {session.isActive ? (
-                        <Badge text="Active Now" color="green" />
+                        <Badge variant="success">Active Now</Badge>
                       ) : (
-                        <Badge text="Inactive" color="gray" />
+                        <Badge variant="neutral">Inactive</Badge>
                       )}
                     </div>
                     <p className="text-sm text-gray-600 dark:text-gray-400">

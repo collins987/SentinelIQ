@@ -100,14 +100,13 @@ export const SpiderwebGraph: React.FC<SpiderwebGraphProps> = ({
             id: edge.id,
             source: edge.source,
             target: edge.target,
-            weight: edge.weight,
-            connectionCount: edge.connectionCount
+            weight: String(edge.weight),
+            connectionCount: String(edge.connectionCount)
           }
         }))
       ],
       layout: {
         name: 'cose',
-        directed: false,
         padding: 10,
         animate: true,
         animationDuration: 500,
