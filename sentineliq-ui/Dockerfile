@@ -17,11 +17,9 @@ COPY index.html ./
 RUN npm ci --only=production && \
     npm ci --only=dev
 
-# Copy source code
+# Copy source code and public assets
 COPY src ./src
-
-# Copy public directory - handles both with/without public folder
-COPY public/ ./public/ 2>/dev/null || true
+COPY public ./public
 
 # Build the application with optimizations
 RUN npm run build
