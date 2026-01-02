@@ -1,6 +1,12 @@
 """
 Milestone 8: Alerts & Anomaly Detection
 Detects and alerts on suspicious activity
+
+Integrations:
+- Email alerts
+- Slack notifications
+- PagerDuty incidents
+- Webhooks
 """
 
 from sqlalchemy.orm import Session
@@ -9,6 +15,9 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 from app.models import User, AuditLog, LoginAttempt
 from app.core.logging import logger
+from app.services.alert_integrations import get_alert_manager, AlertChannel
+from app.services.webhook_service import get_webhook_service
+from app.schemas.event import RiskScore
 
 
 class AlertService:
@@ -235,11 +244,29 @@ class AlertService:
         return sorted(all_alerts, key=lambda x: x["timestamp"], reverse=True)
     
     @staticmethod
-    def send_alert_notification(alert: Dict[str, Any]) -> bool:
+    def send_alert_notification(
+        alert: Dict[str, Any],
+        risk_score: Optional[RiskScore] = None,
+        channels: List[AlertChannel] = None,
+        db: Session = None
+    ) -> Dict[str, bool]:
         """
-        Send alert notification (email, Slack, etc)
-        For now, just logging - can be extended to send emails/webhooks
+        Send alert notification through configured channels:
+        - Email
+        - Slack
+        - PagerDuty
+        - Webhooks
+        
+        Args:
+            alert: Alert information
+            risk_score: Risk assessment object (if available)
+            channels: Specific channels to use (default: all configured)
+            db: Database session for webhook delivery
+        
+        Returns:
+            Dict of channel -> success status
         """
+        results = {}
         severity = alert.get("severity", "unknown").upper()
         alert_type = alert.get("alert_type", "unknown")
         
@@ -252,6 +279,32 @@ class AlertService:
         else:
             logger.info(message, extra=alert)
         
-        # TODO: Integrate with email/Slack/webhook service
+        # Send to configured integrations
+        if risk_score:
+            alert_manager = get_alert_manager()
+            integration_results = alert_manager.send_alerts(
+                risk_score=risk_score,
+                channels=channels
+            )
+            results.update(integration_results)
+            
+            # Deliver to webhooks
+            if db:
+                try:
+                    from app.models.webhooks import Webhook
+                    webhooks = db.query(Webhook).filter(
+                        Webhook.is_active == True
+                    ).all()
+                    
+                    webhook_service = get_webhook_service()
+                    for webhook in webhooks:
+                        if webhook_service.should_deliver(webhook, risk_score):
+                            import asyncio
+                            asyncio.create_task(
+                                webhook_service.deliver(webhook, risk_score, db)
+                            )
+                            results[f"webhook_{webhook.id}"] = True
+                except Exception as e:
+                    logger.error(f"Error delivering webhooks: {str(e)}")
         
-        return True
+        return results

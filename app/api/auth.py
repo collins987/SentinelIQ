@@ -11,6 +11,7 @@ from app.core.auth_utils import (
     check_login_attempts,
     log_login_attempt
 )
+from app.core.rate_limiter import rate_limit, RATE_LIMITS
 from app.schemas.auth import LoginRequest, TokenResponse, RefreshTokenRequest, LogoutRequest
 from app.dependencies import get_current_user
 from datetime import datetime
@@ -27,10 +28,17 @@ def get_db():
 
 
 @router.post("/login", response_model=TokenResponse)
+@rate_limit(
+    max_requests=RATE_LIMITS["auth_login"]["max_requests"],
+    window_size=RATE_LIMITS["auth_login"]["window_size"],
+    by="ip"
+)
 def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
     """
     Login endpoint with rate limiting and refresh token support.
     Returns access_token and refresh_token.
+    
+    Rate Limited: 5 requests per 60 seconds per IP address
     """
     ip_address = request.client.host if request.client else None
     

@@ -1,120 +1,113 @@
-# SentinelIQ - Fintech Risk & Security Intelligence Platform
+# SentinelIQ - Enterprise Risk & Security Intelligence Platform
 
-**Advanced Event-Driven Risk Detection, Real-Time Fraud Prevention, and Comprehensive Security Monitoring for Financial Institutions**
+Advanced event-driven fraud detection, real-time risk assessment, and comprehensive security monitoring for financial institutions. Complete with **production-grade backend + React frontend UI**.
+
+---
+
+## 🎯 What's Inside
+
+**Backend** (`/app`) → The "Porsche Engine"
+- Real-time fraud detection with 22+ features
+- Rule-based + ML-powered risk scoring  
+- Event-driven architecture with Redis streams
+- Immutable audit logging & compliance
+- GraphQL + REST APIs
+
+**Frontend** (`/sentineliq-ui`) → The "Dashboard & Steering Wheel"  
+- 6 role-based dashboards for different personas
+- React 18 + Vite + Tailwind + Tremor
+- Fraud ring visualization with Cytoscape.js
+- Real-time metrics and system health
+- API key management, webhook logs, and more
 
 ---
 
 ## Overview
 
-SentinelIQ is a modern, enterprise-grade backend system designed for financial technology (fintech) companies to detect, prevent, and respond to fraud, security threats, and suspicious activities in real-time. Built with a microservices-first architecture, SentinelIQ combines rule-based risk scoring, behavioral analysis, machine learning readiness, and comprehensive audit logging to provide financial institutions with a complete security posture.
+SentinelIQ is a production-grade platform designed for fintech companies to detect, prevent, and respond to fraud and security threats in real-time. The architecture combines a powerful Python backend with an intuitive React frontend, providing both the computational engine and the user interface different personas need.
+
+### Core Problems Solved
+
+- **Real-time fraud prevention** - Millisecond-level decision latency prevents fraud before it happens
+- **Multi-dimensional risk** - Rules, velocity, behavior, and ML models combined for sophisticated detection
+- **Regulatory compliance** - Immutable audit trails, PII protection, and automated compliance reports
+- **Operational efficiency** - Automated decisions and accurate alerting reduce security team burden
+- **Enterprise security** - RBAC, encryption, hardened defaults, and comprehensive logging
 
 ---
 
-## The Problem It Solves
+## Quick Start
 
-### 1. **Real-Time Fraud Detection**
-Financial institutions process millions of transactions daily. Traditional batch-based fraud detection systems introduce delays—by the time fraud is detected, customers have already suffered losses and institutions face regulatory penalties and reputational damage.
+### Prerequisites
+- Docker & Docker Compose
+- Python 3.11+ (for local development)
 
-### 2. **Complex Risk Assessment**
-Modern financial crimes involve sophisticated techniques:
-- Credential stuffing attacks
-- Money laundering through structuring
-- Account takeover via compromised credentials
-- Geographic anomalies (impossible travel)
-- Velocity-based attacks (rapid transactions from multiple locations)
-- Sanctioned entity access
+### Launch
 
-These require multi-dimensional analysis across real-time events, historical behavior, and regulatory compliance frameworks.
+```bash
+git clone <repo>
+cd sentineliq
+docker compose up --build
 
-### 3. **Regulatory Compliance & Audit Requirements**
-Financial institutions must maintain immutable audit logs, demonstrate compliance with OFAC/sanctions lists, implement KYC (Know Your Customer) protocols, and satisfy PCI-DSS, GDPR, and other regulations. Manual or fragmented logging creates audit gaps and compliance risks.
+# API documentation: http://localhost:8000/docs
+# Grafana dashboards: http://localhost:3000 (admin:admin)
+```
 
-### 4. **Alert Fatigue & Operational Burden**
-Poorly tuned security systems generate false positives, overwhelming security teams and causing alert fatigue. This leads to genuine threats being missed while resources are wasted investigating noise.
-
-### 5. **Lack of Centralized Intelligence**
-Without a unified platform, risk signals are scattered across authentication systems, transaction databases, and security tools. This fragmentation prevents organizations from seeing the full picture of an attack or coordinating responses.
+### Health Check
+```bash
+curl http://localhost:8000/health
+# Response: {"status": "ok"}
+```
 
 ---
 
-## Key Features & Capabilities
+## Features (22 Total)
 
-### **1. Event-Driven Risk Engine**
-- **Real-time event processing** - Consumes authentication, transaction, and user behavior events from Redis streams
-- **Multi-layered risk scoring**:
-  - **Hard Rules**: Immediate blockers (sanctioned countries, credential stuffing)
-  - **Velocity Checks**: Temporal anomalies (5+ login attempts in 1 minute)
-  - **Behavioral Analysis**: Deviation from user baseline patterns
-  - **Composite Scoring**: Combined risk assessment across multiple dimensions
+### Foundation (Features 1-7)
+| # | Feature | Capabilities |
+|---|---------|--------------|
+| **1** | Event Processing | Redis Streams, event validation, enrichment, persistence |
+| **2** | Risk Scoring Rules | 100+ YAML rules, dynamic reloading, hot-swap without restart |
+| **3** | Audit Logging | Immutable event trails, MinIO archival, GDPR-ready retention |
+| **4** | Auth & RBAC | JWT tokens, multi-tenancy, organization isolation |
+| **5** | Monitoring | Prometheus metrics, Loki logs, Grafana dashboards |
+| **6** | Security Headers | OWASP compliance, DNS rebinding protection, vault integration |
+| **7** | Multi-Tenancy | Org-scoped isolation, scalable for SaaS deployments |
 
-### **2. Comprehensive Rule Framework**
-- YAML-based configurable rules without code deployment
-- Rule categories:
-  - Compliance rules (OFAC, sanctions)
-  - Fraud detection (account takeover, suspicious patterns)
-  - Anomaly detection (geographic, velocity, behavioral)
-  - Login security (brute force, credential stuffing)
-- Easy rule updates without system restart
+### API & Analytics (Features 8-16)
+| # | Feature | Capabilities |
+|---|---------|--------------|
+| **8** | Rate Limiting | Redis-backed sliding window, 429 responses, configurable per-endpoint |
+| **9** | Webhooks | HMAC signing, exponential backoff retry, delivery tracking |
+| **10** | Alerts | Slack/PagerDuty/webhook integration, priority-based routing |
+| **11** | Analytics | Time-series, velocity trends, cohort analysis, rule performance metrics |
+| **12** | Rule Management | CRUD, A/B testing, performance comparison, safe deployment |
+| **13** | Search | Full-text, multi-filter, facets, autocomplete, sub-100ms latency |
+| **14** | GraphQL API | Type-safe queries, nested data, schema introspection |
+| **15** | ML Integration | Anomaly detection, risk prediction, configurable sensitivity |
+| **16** | Mobile SDKs | iOS/Android/Web, batch submission, device registration |
 
-### **3. Immutable Audit & Compliance Logging**
-- All events stored in MinIO object storage for regulatory compliance
-- Structured JSON logging with request correlation IDs
-- Audit trail for:
-  - Authentication attempts
-  - User actions
-  - Risk decisions
-  - System changes
-- GDPR-ready with configurable retention policies
-
-### **4. Authentication & Authorization**
-- **JWT-based authentication** with refresh tokens
-- **Role-Based Access Control (RBAC)** with fine-grained permissions
-- **Organization-scoped multi-tenancy** for SaaS deployments
-- Email verification workflows
-- Secure password reset mechanisms
-- Login attempt tracking and brute-force protection
-
-### **5. Real-Time Monitoring & Observability**
-- **Prometheus metrics** for performance monitoring
-- **Structured logging** with Loki integration
-- **Grafana dashboards** for visualization
-- Request latency tracking and performance analytics
-- Health checks and readiness probes
-
-### **6. Security Hardening**
-- **OWASP Security Headers** (HSTS, CSP, X-Frame-Options, etc.)
-- **Trusted Host Middleware** to prevent DNS rebinding attacks
-- **Request logging middleware** for audit trails
-- **User tracking** with device fingerprinting
-- **Encrypted secrets management** via HashiCorp Vault
-- **Redis Stream-based event persistence** for reliability
-
-### **7. Multi-Tenant Architecture**
-- Organization isolation
-- Per-organization authentication and user management
-- Scalable for SaaS deployments serving multiple financial institutions
+### Enterprise (Features 17-22) - Milestone 1 & 2 ⭐
+| # | Feature | Capabilities |
+|---|---------|--------------|
+| **17** | 6-Role RBAC | Admin/Analyst/Officer/Responder/Scientist/Engineer, 25+ permissions, decorator-based |
+| **18** | PII Scrubbing | Auto-mask SSN/CC/email/phone, GDPR/HIPAA compliant, recursive JSON |
+| **19** | Transactional Outbox | Zero-loss event delivery, atomic commits, exponential backoff, 7-day cleanup |
+| **20** | Shadow Mode | Risk-free rule testing, precision/recall metrics, F1-score automation |
+| **21** | Link Analysis | Fraud ring detection, 5-connection types, hub identification, network analysis |
+| **22** | Crypto Audit | SHA-256 chaining, tamper detection, compliance reports, MinIO archival |
 
 ---
 
 ## Use Cases
 
-### **1. Digital Banking Platforms**
-Detect compromised accounts in real-time before attackers can access customer funds. Prevent unauthorized access and money transfers through sophisticated multi-factor risk assessment.
-
-### **2. Payment Processors**
-Identify fraudulent transactions at authorization time. Reduce chargeback rates and protect merchant accounts from compromise. Comply with PCI-DSS requirements with immutable audit trails.
-
-### **3. Cryptocurrency Exchanges**
-Monitor for suspicious withdrawal patterns, sanctioned entity interactions, and rapid account changes. Prevent money laundering through behavioral anomaly detection.
-
-### **4. Lending Platforms**
-Detect synthetic identity fraud and account takeover during loan origination. Verify borrower legitimacy through multi-signal risk analysis.
-
-### **5. Fintech Startups & Neobanks**
-Compete with legacy institutions by offering faster, smarter fraud prevention. Reduce operational burden with automated risk decisions while maintaining regulatory compliance.
-
-### **6. Enterprise Risk & Compliance Teams**
-Gain unified visibility into fraud, security, and compliance events. Investigate incidents quickly with comprehensive audit trails. Generate compliance reports for regulators.
+- **Digital Banking** - Detect compromised accounts before fund theft; multi-factor risk assessment
+- **Payment Processors** - Identify fraud at authorization; reduce chargebacks; PCI-DSS compliance
+- **Crypto Exchanges** - Monitor suspicious withdrawals; sanctioned entity detection; AML/CFT
+- **Lending Platforms** - Detect synthetic identity fraud; verify borrower legitimacy at origination
+- **Fintech Startups** - Compete with legacy institutions; reduce ops burden with automated decisions
+- **Enterprise Compliance** - Unified fraud/security/compliance visibility; quick investigation; audit reports
+- **Milestone 1 & 2 Enhancements** - Shadow mode for safe rule testing, graph analysis for fraud rings, immutable logs for auditors, zero-loss guarantee, secure RBAC, privacy protection
 
 ---
 
@@ -219,6 +212,26 @@ FastAPI auto-generates OpenAPI (Swagger) documentation. Visit `http://localhost:
 ### Admin
 - `GET /admin/users` - List all users
 - `DELETE /admin/users/{user_id}` - Deactivate user
+
+### 🆕 Shadow Mode (Milestone 1 & 2)
+- `POST /api/v1/shadow-mode/evaluate` - Log rule evaluation without blocking
+- `POST /api/v1/shadow-mode/label/{id}` - Label actual fraud outcome (ground truth)
+- `GET /api/v1/shadow-mode/accuracy/{rule_id}` - Get accuracy metrics (precision, recall, F1)
+- `GET /api/v1/shadow-mode/trends/{rule_id}` - Get daily accuracy trends
+- `GET /api/v1/shadow-mode/pending-labels` - List unlabeled evaluations
+
+### 🆕 Link Analysis (Milestone 1 & 2)
+- `GET /api/v1/link-analysis/user/{user_id}` - Find connected users (fraud network)
+- `GET /api/v1/link-analysis/ring/{user_id}` - Analyze fraud ring (size, risk, hubs)
+- `GET /api/v1/link-analysis/hubs` - List top hub users in fraud networks
+- `GET /api/v1/link-analysis/graph/{user_id}` - Get Cytoscape.js visualization data
+- `POST /api/v1/link-analysis/flag-ring` - Flag suspicious group for blocking
+
+### 🆕 Audit & Compliance (Milestone 1 & 2)
+- `GET /api/v1/audit/logs` - Query immutable audit logs
+- `GET /api/v1/audit/verify` - Verify chain integrity (detect tampering)
+- `GET /api/v1/audit/compliance-report` - Generate compliance report (SOC 2, PCI-DSS, GDPR)
+- `GET /api/v1/audit/stats` - Get audit statistics (event counts, actor summaries)
 
 ---
 
@@ -332,13 +345,18 @@ Contributions are welcome! Please follow these guidelines:
 3. Write tests for new functionality
 4. Submit a pull request
 
----
+## Documentation
 
-## Support & Documentation
+| Document | Purpose | Read Time |
+|----------|---------|-----------|
+| [SYSTEM_ARCHITECTURE_AND_OPERATIONS.md](./SYSTEM_ARCHITECTURE_AND_OPERATIONS.md) | System design, deployment architecture, operations procedures | 60 min |
+| [MILESTONE_1_2_IMPLEMENTATION.md](./MILESTONE_1_2_IMPLEMENTATION.md) | Step-by-step implementation guide with 70+ test cases | 120 min |
+| [MILESTONE_1_2_REFINED.md](./MILESTONE_1_2_REFINED.md) | Complete business context and requirements | 90 min |
+| [PRODUCTION_DEPLOYMENT_GUIDE.md](./PRODUCTION_DEPLOYMENT_GUIDE.md) | Kubernetes, cloud deployment, production checklist | 45 min |
+| [OPERATOR_RUNBOOK.md](./OPERATOR_RUNBOOK.md) | Daily operations, troubleshooting, incident response | 40 min |
+| [LOCAL_TESTING_GUIDE.md](./LOCAL_TESTING_GUIDE.md) | Local development, testing, debugging | 30 min |
 
-- **API Docs**: http://localhost:8000/docs
-- **GitHub Issues**: [Report bugs or request features]
-- **Email**: support@sentineliq.com
+**API Documentation**: Visit `http://localhost:8000/docs` for interactive Swagger/OpenAPI documentation
 
 ---
 
@@ -350,13 +368,19 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Roadmap
 
-- [ ] Machine learning model integration for behavioral anomaly detection
-- [ ] Advanced analytics dashboard with drill-down capabilities
-- [ ] GraphQL API support
-- [ ] Webhook notifications for risk events
-- [ ] Mobile SDK for app-based authentication
-- [ ] Third-party integrations (Slack, PagerDuty, Splunk)
+- [x] Machine learning model integration for behavioral anomaly detection
+- [x] Advanced analytics dashboard with drill-down capabilities
+- [x] GraphQL API support
+- [x] Webhook notifications for risk events
+- [x] Mobile SDK for app-based authentication
+- [x] Third-party integrations (Slack, PagerDuty)
+- [x] Runtime rule reloading without downtime
+- [x] Full-text search with advanced filtering
+- [x] Rate limiting and API abuse prevention
 - [ ] Real-time data pipeline to data warehouses
+- [ ] Custom metric builders for organizations
+- [ ] Advanced ML model training capabilities
+- [ ] Federated learning for multi-org collaboration
 
 ---
 
