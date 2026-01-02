@@ -13,9 +13,8 @@ COPY tailwind.config.js ./
 COPY postcss.config.js ./
 COPY index.html ./
 
-# Install dependencies with clean cache
-RUN npm ci --only=production && \
-    npm ci --only=dev
+# Install dependencies
+RUN npm install
 
 # Copy source code and public assets
 COPY src ./src
