@@ -3,8 +3,6 @@ services:
     build:
       context: ./sentineliq-ui
       dockerfile: Dockerfile
-      cache_from:
-        - sentineliq-frontend:latest
     container_name: sentineliq_frontend
     ports:
       - "5173:5173"
