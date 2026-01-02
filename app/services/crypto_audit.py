@@ -8,6 +8,8 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func
+from fastapi import Depends
+from app.dependencies import get_db
 from app.models import CryptoChainedAuditLog, User
 
 logger = logging.getLogger(__name__)
@@ -375,6 +377,6 @@ class CryptoChainedAuditService:
 
 # ========== HELPER FUNCTION ==========
 
-def get_crypto_audit_service(db: Session) -> CryptoChainedAuditService:
+def get_crypto_audit_service(db: Session = Depends(get_db)) -> CryptoChainedAuditService:
     """Dependency: Get crypto-chained audit service."""
     return CryptoChainedAuditService(db)

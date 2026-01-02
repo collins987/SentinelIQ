@@ -6,7 +6,9 @@ from typing import Dict, List, Set, Tuple, Any, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import select, and_, func
+from fastapi import Depends
 from app.models import UserConnection, User
+from app.dependencies import get_db
 try:
     import networkx as nx
     NETWORKX_AVAILABLE = True
@@ -421,6 +423,6 @@ class LinkAnalysisService:
 
 # ========== HELPER FUNCTION ==========
 
-def get_link_analysis_service(db: Session) -> LinkAnalysisService:
+def get_link_analysis_service(db: Session = Depends(get_db)) -> LinkAnalysisService:
     """Dependency: Get link analysis service."""
     return LinkAnalysisService(db)

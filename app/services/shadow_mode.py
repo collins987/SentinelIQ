@@ -6,7 +6,9 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, and_
+from fastapi import Depends
 from app.models import ShadowModeResult, User
+from app.dependencies import get_db
 from enum import Enum
 
 logger = logging.getLogger(__name__)
@@ -342,8 +344,10 @@ class ShadowModeService:
         }
 
 
+
 # ========== HELPER FUNCTION ==========
 
-def get_shadow_mode_service(db: Session) -> ShadowModeService:
+def get_shadow_mode_service(db: Session = Depends(get_db)) -> ShadowModeService:
     """Dependency: Get shadow mode service."""
     return ShadowModeService(db)
+
