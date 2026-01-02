@@ -17,6 +17,7 @@ PyYAML==6.0.1
 # Machine Learning libraries
 numpy==1.26.4
 scikit-learn==1.4.2
+networkx==3.2.1
 # Structured JSON logging
 python-json-logger==2.0.7
 # S3 / MinIO object storage for immutable logs

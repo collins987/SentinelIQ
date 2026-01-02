@@ -250,3 +250,31 @@ def get_redis_stream_manager() -> RedisStreamManager:
         _redis_stream_manager = RedisStreamManager()
         _redis_stream_manager.ensure_consumer_groups()
     return _redis_stream_manager
+
+
+async def publish_to_stream(
+    stream: str,
+    message: Dict[str, Any],
+    message_id: Optional[str] = None
+) -> str:
+    """
+    Publish a message to a Redis Stream (async wrapper).
+    
+    Args:
+        stream: Stream name (e.g., 'events:fraud_detected')
+        message: Message payload as dictionary
+        message_id: Optional message ID (Redis generates one if not provided)
+    
+    Returns:
+        The stream ID of the published message
+    """
+    manager = get_redis_stream_manager()
+    # Convert message_id if provided, otherwise let Redis generate it
+    # Note: Redis client is sync, so this runs in the thread pool
+    if message_id:
+        stream_id = manager.redis.xadd(stream, message, id=message_id, maxlen=100000)
+    else:
+        stream_id = manager.redis.xadd(stream, message, maxlen=100000)
+    
+    logger.debug(f"Published message to stream {stream}: {stream_id}")
+    return stream_id
