@@ -88,7 +88,7 @@ def search_by_user(
     try:
         return search_service.search_by_user_email(
             db,
-            email=None,  # We'll use user_id param directly
+            email=user_id,
             days=days,
             limit=limit
         )
