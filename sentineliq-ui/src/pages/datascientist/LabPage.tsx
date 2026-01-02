@@ -143,7 +143,7 @@ actions:
               <h4 className="font-semibold mb-3">Rule Syntax Help</h4>
               <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
                 <div>
-                  <strong>Conditions:</strong> Use logical operators (>, <, =, AND, OR)
+                  <strong>Conditions:</strong> Use logical operators (&gt;, &lt;, =, AND, OR)
                 </div>
                 <div>
                   <strong>Actions:</strong> risk_score, notify, block_account, step_up_auth
