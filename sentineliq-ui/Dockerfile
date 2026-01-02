@@ -19,7 +19,9 @@ RUN npm ci --only=production && \
 
 # Copy source code
 COPY src ./src
-COPY public ./public
+
+# Copy public directory - handles both with/without public folder
+COPY public/ ./public/ 2>/dev/null || true
 
 # Build the application with optimizations
 RUN npm run build
