@@ -13,7 +13,7 @@ from collections import defaultdict
 from app.models import User, AuditLog
 from app.models.events import RiskDecision, RuleEvaluation, VelocityCounter
 from app.core.logging import logger
-from app.core.db import get_session
+from app.core.db import SessionLocal
 
 
 class AdvancedAnalyticsService:
