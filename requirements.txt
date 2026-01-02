@@ -14,6 +14,9 @@ jinja2==3.1.2
 strawberry-graphql[fastapi]==0.234.0
 # YAML rule configuration
 PyYAML==6.0.1
+# Machine Learning libraries
+numpy==1.26.4
+scikit-learn==1.4.2
 # Structured JSON logging
 python-json-logger==2.0.7
 # S3 / MinIO object storage for immutable logs

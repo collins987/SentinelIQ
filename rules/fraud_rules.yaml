@@ -1,51 +1,232 @@
 # SentinelIQ Fraud Detection Rules
 # Event-driven risk scoring with Hard Rules, Velocity Checks, and Behavioral Analysis
 
+# ============================================================================
+# GATES (Hard Rules) - Immediate action, no negotiation
+# ============================================================================
+
+gates:
+  - id: "sanctioned_region"
+    name: "Sanctioned Region Access"
+    type: "hard"
+    score: 1.0
+    description: "Block access from OFAC/sanctioned countries"
+    action: "block"
+    conditions:
+      country_code:
+        in: ["KP", "IR", "SY", "CU"]
+    metadata:
+      severity: "critical"
+      compliance: "OFAC"
+
+  - id: "credential_stuffing"
+    name: "Credential Stuffing Attack"
+    type: "hard"
+    score: 0.95
+    description: "Detect brute force / credential stuffing patterns"
+    action: "challenge"
+    conditions:
+      event_type: "authentication.failed"
+      failed_attempts_5min: { gt: 5 }
+    metadata:
+      severity: "critical"
+      rate_limit: 5
+
+  - id: "known_malware_ip"
+    name: "Known Malware IP Address"
+    type: "hard"
+    score: 1.0
+    description: "Block from known C2 or malware distribution servers"
+    action: "block"
+    conditions:
+      ip_address:
+        in: []  # Would be populated from threat intel feeds
+    metadata:
+      severity: "critical"
+      requires_threat_intel: true
+
+  - id: "vpn_proxy_detected"
+    name: "VPN or Proxy Detected"
+    type: "hard"
+    score: 0.90
+    description: "Flag anonymous access attempts"
+    action: "challenge"
+    conditions:
+      connection_type:
+        in: ["vpn", "proxy", "tor"]
+    metadata:
+      severity: "medium"
+      acceptable_in_whitelist: true
+
+
+# ============================================================================
+# RULES (Velocity and Behavioral) - Scored and combined for risk assessment
+# ============================================================================
+
 rules:
   
   # ============================================================================
-  # HARD RULES (Gatekeepers) - Block immediately, no score negotiation
+  # VELOCITY RULES - Fast pattern detection
   # ============================================================================
   
-  hard_rules:
+  - id: "impossible_travel"
+    name: "Impossible Travel Velocity"
+    type: "velocity"
+    score: 0.85
+    description: "User appears in two geographically distant locations in impossible timeframe"
+    action: "block"
+    enabled: true
     
-    - id: "sanctioned_region"
-      name: "Sanctioned Region Access"
-      category: "hard_rule"
-      enabled: true
-      description: "Block access from OFAC/sanctioned countries"
-      risk_score: 1.0  # Automatic block
-      action: "block"
-      
-      conditions:
-        country_code:
-          in: ["KP", "IR", "SY", "CU"]  # North Korea, Iran, Syria, Cuba
-      
-      metadata:
-        severity: "critical"
-        compliance: "OFAC"
+    conditions:
+      event_type: "transaction.attempted"
+      distance_miles: { gt: 3000 }
+      time_window_hours: { lt: 6 }
     
+    metadata:
+      severity: "high"
+      calculation: "haversine_distance"
+      max_human_speed_mph: 500
+  
+  - id: "rapid_transactions"
+    name: "Rapid Transaction Velocity"
+    type: "velocity"
+    score: 0.70
+    description: "Unusually high transaction frequency"
+    action: "review"
+    enabled: true
     
-    - id: "credential_stuffing"
-      name: "Credential Stuffing Attack"
-      category: "hard_rule"
-      enabled: true
-      description: "Detect brute force / credential stuffing patterns"
-      risk_score: 0.95
-      action: "challenge"
-      
-      conditions:
-        event_type: "authentication.failed"
-        failed_attempts_5min: { gt: 5 }
-      
-      metadata:
-        severity: "critical"
-        rate_limit: 5
+    conditions:
+      event_type: "transaction.attempted"
+      transactions_per_hour: { gt: 20 }
+      transactions_per_day: { gt: 100 }
     
+    metadata:
+      severity: "medium"
+  
+  - id: "multi_device_login"
+    name: "Simultaneous Multi-Device Login"
+    type: "velocity"
+    score: 0.75
+    description: "Concurrent logins from different devices within seconds"
+    action: "challenge"
+    enabled: true
     
-    - id: "known_malware_ip"
-      name: "Known Malware IP Address"
-      category: "hard_rule"
+    conditions:
+      event_type: "authentication.login"
+      unique_devices_5min: { gt: 3 }
+      time_window_seconds: { lt: 60 }
+    
+    metadata:
+      severity: "high"
+  
+  # ============================================================================
+  # BEHAVIORAL RULES - Anomaly detection based on user history
+  # ============================================================================
+  
+  - id: "unusual_transaction_amount"
+    name: "Unusual Transaction Amount"
+    type: "behavioral"
+    score: 0.65
+    description: "Transaction amount significantly exceeds user's typical behavior"
+    action: "review"
+    enabled: true
+    
+    conditions:
+      event_type: "transaction.attempted"
+      amount_percentile: { gt: 300 }
+    
+    thresholds:
+      low: 150
+      medium: 250
+      high: 400
+    
+    metadata:
+      severity: "medium"
+      lookback_period_days: 90
+  
+  - id: "new_recipient"
+    name: "Transaction to New Recipient"
+    type: "behavioral"
+    score: 0.45
+    description: "First transaction to a previously unseen recipient"
+    action: "review"
+    enabled: true
+    
+    conditions:
+      event_type: "transaction.attempted"
+      recipient_is_new: true
+    
+    metadata:
+      severity: "low"
+      combine_with:
+        - "unusual_transaction_amount"
+  
+  - id: "unusual_login_time"
+    name: "Login at Unusual Time"
+    type: "behavioral"
+    score: 0.35
+    description: "Login outside user's typical active hours"
+    action: "monitor"
+    enabled: true
+    
+    conditions:
+      event_type: "authentication.login"
+      hour_of_day: { not_in: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] }
+    
+    metadata:
+      severity: "low"
+      lookback_period_days: 30
+  
+  - id: "new_device"
+    name: "Login from New Device"
+    type: "behavioral"
+    score: 0.40
+    description: "First login from a new device"
+    action: "review"
+    enabled: true
+    
+    conditions:
+      event_type: "authentication.login"
+      device_is_new: true
+    
+    metadata:
+      severity: "low"
+      require_additional_verification: true
+      mfa_required: true
+  
+  - id: "unusual_data_access"
+    name: "Unusual Data Access Pattern"
+    type: "behavioral"
+    score: 0.55
+    description: "Accessing significantly more data than typical"
+    action: "monitor"
+    enabled: true
+    
+    conditions:
+      event_type: "data_access.read"
+      access_volume_percentile: { gt: 250 }
+      time_window_minutes: 60
+    
+    metadata:
+      severity: "medium"
+      potential_indicator: "data_exfiltration"
+  
+  - id: "low_security_authentication"
+    name: "Low-Security Authentication Method"
+    type: "behavioral"
+    score: 0.30
+    description: "Login without MFA in high-risk context"
+    action: "monitor"
+    enabled: true
+    
+    conditions:
+      event_type: "authentication.login"
+      mfa_used: false
+      user_role: ["analyst", "admin"]
+    
+    metadata:
+      severity: "low"
+      recommendation: "enable_mfa"
       enabled: true
       description: "Block from known C2 or malware distribution servers"
       risk_score: 0.98
@@ -313,23 +494,23 @@ rules:
 # ============================================================================
 
 scoring:
+  base_risk: 0.15
+  velocity_weight: 0.30
+  behavioral_weight: 0.20
   
   thresholds:
-    allow: 0.0      # Risk score < 0.30 = allow
-    review: 0.30    # 0.30 - 0.60 = manual review
-    challenge: 0.60 # 0.60 - 0.80 = challenge (MFA, verification)
-    block: 0.80     # >= 0.80 = block
+    allow: 0.0
+    review: 0.30
+    challenge: 0.60
+    block: 0.80
   
-  # Score calculation method
   method: "weighted_sum"
   
-  # Rule weights (how much each rule category contributes)
   weights:
-    hard_rule: 0.50
+    hard: 0.50
     velocity: 0.30
     behavioral: 0.20
   
-  # Maximum score (capped at 1.0)
   max_score: 1.0
 
 
