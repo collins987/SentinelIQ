@@ -118,9 +118,9 @@ export const DeveloperPortalPage: React.FC = () => {
                     <div className="flex items-center gap-2 mb-1">
                       <p className="font-semibold">{key.name}</p>
                       {key.isActive ? (
-                        <Badge variant="success">Active</Badge>
+                        <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</Badge>
                       ) : (
-                        <Badge variant="neutral">Inactive</Badge>
+                        <Badge className="bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Inactive</Badge>
                       )}
                     </div>
                     <p className="text-xs font-mono text-gray-600 dark:text-gray-400 break-all">
@@ -167,10 +167,9 @@ export const DeveloperPortalPage: React.FC = () => {
                   <div>
                     <div className="flex items-center gap-2 mb-1">
                       <p className="font-semibold">{webhook.eventType}</p>
-                      <Badge
-                        text={webhook.statusCode === 200 ? 'Success' : 'Failed'}
-                        color={webhook.statusCode === 200 ? 'green' : 'red'}
-                      />
+                      <Badge className={webhook.statusCode === 200 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}>
+                        {webhook.statusCode === 200 ? 'Success' : 'Failed'}
+                      </Badge>
                     </div>
                     <p className="text-xs text-gray-600 dark:text-gray-400">
                       {new Date(webhook.timestamp).toLocaleString()}

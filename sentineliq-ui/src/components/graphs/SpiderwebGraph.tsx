@@ -81,7 +81,8 @@ export const SpiderwebGraph: React.FC<SpiderwebGraphProps> = ({
             'font-size': 8,
             'text-background-color': '#ffffff',
             'text-background-opacity': 0.8,
-            'text-background-padding': 2
+            'text-background-padding': 2,
+            width: 'mapData(connectionCount, 0, 100, 10, 50)'
           }
         }
       ],

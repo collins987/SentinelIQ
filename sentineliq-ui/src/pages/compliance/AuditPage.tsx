@@ -118,9 +118,9 @@ export const ComplianceAuditPage: React.FC = () => {
                     </td>
                     <td className="py-3 px-4">
                       {log.status === 'success' ? (
-                        <Badge variant="success">Success</Badge>
+                        <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Success</Badge>
                       ) : (
-                        <Badge variant="error">Failed</Badge>
+                        <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">Failed</Badge>
                       )}
                     </td>
                     <td className="py-3 px-4">
