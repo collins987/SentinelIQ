@@ -1,5 +1,15 @@
 import { Transaction, Alert, UserSession, GraphNode, GraphEdge, RiskLevel, TransactionStatus, APIKey, AuditLog, FraudRule, SystemMetrics } from '@/types'
 
+export const mockWebhooks = [
+  {
+    id: 'webhook_1',
+    url: 'https://example.com/webhook',
+    events: ['alert.created', 'incident.created'],
+    active: true,
+    lastTriggered: new Date(),
+  },
+]
+
 export const mockTransactions: Transaction[] = [
   {
     id: 'txn_001',

@@ -54,10 +54,9 @@ export const TransactionDetails: React.FC<TransactionDetailsProps> = ({
               Transaction ID: {transaction.id}
             </p>
           </div>
-          <Badge
-            text={transaction.riskLevel.toUpperCase()}
-            color={getRiskColor(transaction.riskLevel)}
-          />
+          <Badge>
+            {transaction.riskLevel.toUpperCase()}
+          </Badge>
         </div>
 
         {/* Key Metrics */}

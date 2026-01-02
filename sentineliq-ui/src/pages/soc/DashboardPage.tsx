@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { DashboardLayout } from '@/layouts'
-import { Card, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from '@tremor/react'
+import { Card } from '@tremor/react'
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { mockSystemMetrics, mockAlerts } from '@/mockData'
 import { SystemMetrics } from '@/types'
 

@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
-import { Card, Badge, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from '@tremor/react'
+import { Card, Badge } from '@tremor/react'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { RiskLevel, Transaction, TransactionStatus } from '@/types'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -123,7 +124,7 @@ export const TriageQueue: React.FC<TriageQueueProps> = ({
                     <span className="font-medium text-gray-900 dark:text-white">
                       {txn.merchantName}
                     </span>
-                    <Badge text={txn.riskLevel.toUpperCase()} color={getRiskColor(txn.riskLevel)} />
+                    <Badge>{txn.riskLevel.toUpperCase()}</Badge>
                   </div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     User {txn.userId} • ${txn.amount.toLocaleString()}

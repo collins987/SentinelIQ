@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { DashboardLayout } from '@/layouts'
-import { Card, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from '@tremor/react'
+import { Card } from '@tremor/react'
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { mockFraudRules } from '@/mockData'
 
 const compareData = [
