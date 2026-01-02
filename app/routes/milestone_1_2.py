@@ -25,7 +25,6 @@ async def log_shadow_evaluation(
     would_have_blocked: bool,
     confidence_score: int = Query(..., ge=0, le=100),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
     shadow_service: ShadowModeService = Depends(get_shadow_mode_service),
 ):
     """
@@ -61,7 +60,6 @@ async def label_shadow_result(
     result_id: str,
     actual_fraud: bool,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
     shadow_service: ShadowModeService = Depends(get_shadow_mode_service),
 ):
     """
@@ -99,7 +97,6 @@ async def get_rule_accuracy(
     rule_id: str,
     time_window_hours: int = Query(48, ge=1, le=720),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
     shadow_service: ShadowModeService = Depends(get_shadow_mode_service),
 ):
     """
@@ -127,7 +124,6 @@ async def get_accuracy_trends(
     rule_id: str,
     days: int = Query(7, ge=1, le=30),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
     shadow_service: ShadowModeService = Depends(get_shadow_mode_service),
 ):
     """
@@ -153,7 +149,6 @@ async def get_accuracy_trends(
 async def get_pending_labels(
     limit: int = Query(10, ge=1, le=100),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
     shadow_service: ShadowModeService = Depends(get_shadow_mode_service),
 ):
     """
@@ -193,7 +188,6 @@ async def get_user_links(
     user_id: str,
     connection_types: Optional[List[str]] = Query(None),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
     link_service: LinkAnalysisService = Depends(get_link_analysis_service),
 ):
     """
@@ -224,7 +218,6 @@ async def get_user_links(
 async def analyze_fraud_ring(
     user_id: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
     link_service: LinkAnalysisService = Depends(get_link_analysis_service),
 ):
     """
@@ -249,7 +242,6 @@ async def analyze_fraud_ring(
 async def get_top_hubs(
     limit: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
     link_service: LinkAnalysisService = Depends(get_link_analysis_service),
 ):
     """
@@ -274,7 +266,6 @@ async def get_top_hubs(
 async def get_graph_data(
     user_id: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
     link_service: LinkAnalysisService = Depends(get_link_analysis_service),
 ):
     """
@@ -301,7 +292,6 @@ async def flag_ring(
     user_ids: List[str],
     reason: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
     link_service: LinkAnalysisService = Depends(get_link_analysis_service),
 ):
     """
@@ -332,7 +322,6 @@ async def get_audit_logs(
     resource_type: Optional[str] = None,
     limit: int = Query(100, ge=1, le=1000),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
     audit_service: CryptoChainedAuditService = Depends(get_crypto_audit_service),
 ):
     """
@@ -374,7 +363,6 @@ async def get_audit_logs(
 @router.get("/audit/verify")
 async def verify_audit_chain(
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
     audit_service: CryptoChainedAuditService = Depends(get_crypto_audit_service),
 ):
     """
@@ -399,7 +387,6 @@ async def verify_audit_chain(
 async def generate_compliance_report(
     report_type: str = Query("soc2", regex="^(soc2|pci_dss|gdpr|ofac)$"),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
     audit_service: CryptoChainedAuditService = Depends(get_crypto_audit_service),
 ):
     """
@@ -424,7 +411,6 @@ async def generate_compliance_report(
 @router.get("/audit/stats")
 async def get_audit_stats(
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
     audit_service: CryptoChainedAuditService = Depends(get_crypto_audit_service),
 ):
     """

@@ -284,21 +284,21 @@ class RuleManager:
         try:
             # Store rules JSON
             rules_json = json.dumps(rules)
-            redis_manager.redis_client.set(
+            redis_manager.redis.set(
                 f"rules:version:{version}",
                 rules_json,
                 ex=86400*30  # 30 day TTL
             )
             
             # Set current rules pointer
-            redis_manager.redis_client.set(
+            redis_manager.redis.set(
                 "rules:current_version",
                 version,
                 ex=86400*30
             )
             
             # Publish reload event for other instances
-            redis_manager.redis_client.publish(
+            redis_manager.redis.publish(
                 "rule_reload",
                 json.dumps({
                     "version": version,
@@ -319,12 +319,12 @@ class RuleManager:
         """
         try:
             if not version:
-                version = redis_manager.redis_client.get("rules:current_version")
+                version = redis_manager.redis.get("rules:current_version")
                 if not version:
                     return {"status": "error", "error": "No current version in Redis"}
                 version = version.decode() if isinstance(version, bytes) else version
             
-            rules_json = redis_manager.redis_client.get(f"rules:version:{version}")
+            rules_json = redis_manager.redis.get(f"rules:version:{version}")
             if not rules_json:
                 return {"status": "error", "error": f"Version {version} not found in Redis"}
             
