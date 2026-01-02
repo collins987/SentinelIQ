@@ -32,9 +32,10 @@ FROM nginx:1.25-alpine
 # Install health check dependencies
 RUN apk add --no-cache curl
 
-# Create non-root user for security
-RUN addgroup -g 101 -S nginx && \
-    adduser -S -D -H -u 101 -h /var/cache/nginx -s /sbin/nologin -c "nginx user" -G nginx nginx
+# nginx user already exists in nginx:1.25-alpine
+# Just ensure proper permissions for directories
+RUN mkdir -p /var/cache/nginx /var/log/nginx && \
+    chown -R nginx:nginx /var/cache/nginx /var/log/nginx /etc/nginx/conf.d
 
 # Copy NGINX configuration
 COPY nginx.conf /etc/nginx/nginx.conf
