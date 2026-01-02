@@ -58,11 +58,11 @@ export const SpiderwebGraph: React.FC<SpiderwebGraphProps> = ({
               return ele.data('type') === 'user' ? 40 : 35
             },
             label: 'data(label)',
-            'font-size': 10,
+            'font-size': '10px',
             color: '#ffffff',
             'text-halign': 'center',
             'text-valign': 'center',
-            'overlay-padding': 5,
+            'overlay-padding': '5px',
             'z-index': 10
           }
         },
@@ -78,10 +78,10 @@ export const SpiderwebGraph: React.FC<SpiderwebGraphProps> = ({
             },
             'curve-style': 'bezier',
             label: 'data(connectionCount)',
-            'font-size': 8,
+            'font-size': '8px',
             'text-background-color': '#ffffff',
             'text-background-opacity': 0.8,
-            'text-background-padding': 2
+            'text-background-padding': '2px'
           }
         }
       ],
