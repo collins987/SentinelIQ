@@ -1,7 +1,7 @@
 # ============================================================================
 # Build Stage - Compile TypeScript and optimize assets
 # ============================================================================
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -14,11 +14,10 @@ COPY postcss.config.cjs ./
 COPY index.html ./
 
 # Install dependencies
-RUN npm install
+RUN npm ci
 
 # Copy source code and public assets
-COPY src ./src
-COPY public ./public
+COPY . .
 
 # Build the application with optimizations
 RUN npm run build
@@ -26,33 +25,38 @@ RUN npm run build
 # ============================================================================
 # Runtime Stage - Minimal NGINX image for production
 # ============================================================================
-FROM nginx:1.25-alpine
+FROM node:20-alpine AS production
 
-# Install health check dependencies
-RUN apk add --no-cache curl
+WORKDIR /app
 
-# nginx user already exists in nginx:1.25-alpine
-# Just ensure proper permissions for directories
-RUN mkdir -p /var/cache/nginx /var/log/nginx && \
-    chown -R nginx:nginx /var/cache/nginx /var/log/nginx /etc/nginx/conf.d
+# Install serve for production
+RUN npm install -g serve
 
-# Copy NGINX configuration
-COPY nginx.conf /etc/nginx/nginx.conf
-RUN chmod 644 /etc/nginx/nginx.conf
-
-# Copy built application from builder
-COPY --from=builder --chown=nginx:nginx /app/dist /usr/share/nginx/html
-
-# Run NGINX master as root so it can write /var/run/nginx.pid.
-# NGINX will drop privileges to the configured user for worker processes.
+# Copy built files from builder
+COPY --from=builder /app/dist ./dist
 
 # Expose port
 EXPOSE 5173
 
 # Health check with improved reliability
-HEALTHCHECK --interval=15s --timeout=5s --retries=3 --start-period=30s \
-    CMD curl -f http://localhost:5173/health || exit 1
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --quiet --tries=1 --spider http://localhost:5173/ || exit 1
 
-# Override nginx base image entrypoint and start directly
-ENTRYPOINT []
-CMD ["nginx", "-g", "daemon off;"]
+# Start the server
+CMD ["serve", "-s", "dist", "-l", "5173"]
+
+# ============================================================================
+# Development Stage - For development environment
+# ============================================================================
+FROM node:20-alpine AS development
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+
+EXPOSE 5173
+
+CMD ["npm", "run", "dev", "--", "--host"]

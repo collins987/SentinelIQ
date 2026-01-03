@@ -2,12 +2,14 @@
 // App.tsx - Main Application with Routing
 // ============================================================================
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
+import { useUIStore } from '@/stores';
 
 // Layout
 import DashboardLayout from './layouts/DashboardLayout';
+import { MainLayout } from '@/components/layout/main-layout';
 
 // Pages
 import LoginPage from './pages/Login';
@@ -19,6 +21,13 @@ import ShadowModePage from './pages/ShadowMode';
 import MLModelsPage from './pages/MLModels';
 import RulesPage from './pages/Rules';
 import AuditLogsPage from './pages/AuditLogs';
+import { JobsPage } from '@/pages/jobs';
+import { ActivityPage } from '@/pages/activity';
+import { HealthPage } from '@/pages/health';
+import { UsersPage } from '@/pages/users';
+import { RolesPage } from '@/pages/roles';
+import { AuditPage } from '@/pages/audit';
+import { NotificationsPage } from '@/pages/notifications';
 
 // Protected Route Component
 interface ProtectedRouteProps {
@@ -55,53 +64,73 @@ const PlaceholderPage: React.FC<{ title: string }> = ({ title }) => (
   </div>
 );
 
+function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const { theme } = useUIStore();
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+    root.classList.remove('light', 'dark');
+
+    if (theme === 'system') {
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      root.classList.add(systemTheme);
+    } else {
+      root.classList.add(theme);
+    }
+  }, [theme]);
+
+  return <>{children}</>;
+}
+
 const App: React.FC = () => {
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Public Routes */}
-        <Route path="/login" element={<LoginPage />} />
+    <ThemeProvider>
+      <BrowserRouter>
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/login" element={<LoginPage />} />
 
-        {/* Protected Dashboard Routes */}
-        <Route element={<ProtectedRoute />}>
-          <Route element={<DashboardRoutes />}>
-            {/* Main Dashboard */}
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/dashboard" element={<Dashboard />} />
+          {/* Protected Dashboard Routes */}
+          <Route element={<ProtectedRoute />}>
+            <Route element={<DashboardRoutes />}>
+              {/* Main Dashboard */}
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/dashboard" element={<Dashboard />} />
 
-            {/* Risk Events */}
-            <Route path="/events" element={<EventsPage />} />
+              {/* Risk Events */}
+              <Route path="/events" element={<EventsPage />} />
 
-            {/* Analytics */}
-            <Route path="/analytics" element={<AnalyticsPage />} />
+              {/* Analytics */}
+              <Route path="/analytics" element={<AnalyticsPage />} />
 
-            {/* Link Analysis */}
-            <Route path="/link-analysis" element={<LinkAnalysisPage />} />
+              {/* Link Analysis */}
+              <Route path="/link-analysis" element={<LinkAnalysisPage />} />
 
-            {/* Shadow Mode */}
-            <Route path="/shadow-mode" element={<ShadowModePage />} />
+              {/* Shadow Mode */}
+              <Route path="/shadow-mode" element={<ShadowModePage />} />
 
-            {/* ML Models */}
-            <Route path="/ml-models" element={<MLModelsPage />} />
+              {/* ML Models */}
+              <Route path="/ml-models" element={<MLModelsPage />} />
 
-            {/* Rules Engine */}
-            <Route path="/rules" element={<RulesPage />} />
+              {/* Rules Engine */}
+              <Route path="/rules" element={<RulesPage />} />
 
-            {/* Audit Logs */}
-            <Route path="/audit-logs" element={<AuditLogsPage />} />
+              {/* Audit Logs */}
+              <Route path="/audit-logs" element={<AuditLogsPage />} />
 
-            {/* Placeholder routes for future pages */}
-            <Route path="/integrations" element={<PlaceholderPage title="Integrations" />} />
-            <Route path="/users" element={<PlaceholderPage title="User Management" />} />
-            <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
+              {/* Placeholder routes for future pages */}
+              <Route path="/integrations" element={<PlaceholderPage title="Integrations" />} />
+              <Route path="/users" element={<PlaceholderPage title="User Management" />} />
+              <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
+            </Route>
           </Route>
-        </Route>
 
-        {/* Catch all - redirect to dashboard */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
+          {/* Catch all - redirect to dashboard */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </ThemeProvider>
   );
 };
 
-export default App
+export default App;
