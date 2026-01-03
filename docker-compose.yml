@@ -95,10 +95,7 @@ services:
     networks:
       - backend
 
-  # ============================================================================
-  # MILESTONE 1 & 2: Event-Driven Risk Engine Infrastructure
-  # ============================================================================
-
+  # Event-Driven Risk Engine Infrastructure
   # MinIO - S3-compatible object storage for immutable audit logs
   minio:
     image: minio/minio:latest

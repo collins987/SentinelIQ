@@ -10,7 +10,7 @@ COPY package*.json ./
 COPY tsconfig*.json ./
 COPY vite.config.ts ./
 COPY tailwind.config.js ./
-COPY postcss.config.js ./
+COPY postcss.config.cjs ./
 COPY index.html ./
 
 # Install dependencies
