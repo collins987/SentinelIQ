@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { DashboardLayout } from '../../../layouts'
-import { SpiderwebGraph } from '../../../components/graphs/SpiderwebGraph'
-import { useIncidentStore } from '../../../stores/incidentStore'
-import { mockGraphNodes, mockGraphEdges, mockTransactions } from '../../../mockData'
+import { DashboardLayout } from '../../layouts'
+import { SpiderwebGraph } from '../../components/graphs/SpiderwebGraph'
+import { useIncidentStore } from '../../stores/incidentStore'
+import { mockGraphNodes, mockGraphEdges, mockTransactions } from '../../mockData'
 import { Card } from '@tremor/react'
 
 export const AnalystGraphPage: React.FC = () => {

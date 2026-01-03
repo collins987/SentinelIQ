@@ -1,8 +1,8 @@
 import React, { useState } from 'react'
-import { DashboardLayout } from '../../../layouts'
+import { DashboardLayout } from '../../layouts'
 import { Card } from '@tremor/react'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { mockFraudRules } from '../../../mockData'
+import { mockFraudRules } from '../../mockData'
 
 const compareData = [
   { time: '00:00', live: 50, shadow: 120 },
