@@ -1,31 +1,36 @@
-import React, { useEffect } from 'react'
+import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useAuthStore } from '@/stores/authStore'
-import { AuthLayout } from '@/layouts'
+
+// ✅ FIXED: relative imports
+import { useAuthStore } from './stores/authStore'
+import { AuthLayout } from './layouts'
 
 // Pages
-import { AnalystTriagePage } from '@/pages/analyst/TriagePage'
-import { AnalystGraphPage } from '@/pages/analyst/GraphPage'
-import { EndUserPortalPage } from '@/pages/enduser/PortalPage'
-import { SOCDashboardPage } from '@/pages/soc/DashboardPage'
-import { DataScientistLabPage } from '@/pages/datascientist/LabPage'
-import { DeveloperPortalPage } from '@/pages/developer/PortalPage'
-import { ComplianceAuditPage } from '@/pages/compliance/AuditPage'
-import { UserRole } from '@/types'
+import { AnalystTriagePage } from './pages/analyst/TriagePage'
+import { AnalystGraphPage } from './pages/analyst/GraphPage'
+import { EndUserPortalPage } from './pages/enduser/PortalPage'
+import { SOCDashboardPage } from './pages/soc/DashboardPage'
+import { DataScientistLabPage } from './pages/datascientist/LabPage'
+import { DeveloperPortalPage } from './pages/developer/PortalPage'
+import { ComplianceAuditPage } from './pages/compliance/AuditPage'
+import { UserRole } from './types'
 
-// Simple login page
+// ==========================
+// Simple Login Page
+// ==========================
 const LoginPage: React.FC = () => {
   const { login } = useAuthStore()
-  const [email, setEmail] = React.useState('analyst@sentineliq.com')
-  const [password, setPassword] = React.useState('password')
+  const [email] = React.useState('analyst@sentineliq.com')
+  const [password] = React.useState('password')
   const [error, setError] = React.useState('')
   const [loading, setLoading] = React.useState(false)
 
   const handleLogin = async (role: UserRole) => {
     setLoading(true)
     setError('')
+
     try {
-      // For demo purposes, create a mock user
+      // Demo auth state
       useAuthStore.setState({
         user: {
           id: `user_${Date.now()}`,
@@ -39,10 +44,11 @@ const LoginPage: React.FC = () => {
         isLoading: false,
         error: null
       })
-    } catch (err) {
+    } catch {
       setError('Login failed')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (
@@ -84,7 +90,9 @@ const LoginPage: React.FC = () => {
   )
 }
 
-// Protected Route component
+// ==========================
+// Protected Route
+// ==========================
 interface ProtectedRouteProps {
   children: React.ReactNode
   requiredRole?: UserRole
@@ -121,17 +129,18 @@ const UnauthorizedPage = () => (
   </AuthLayout>
 )
 
+// ==========================
+// App Root
+// ==========================
 export const App: React.FC = () => {
   const { isAuthenticated, user } = useAuthStore()
 
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public Routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
-        {/* Analyst Routes */}
         <Route
           path="/analyst/triage"
           element={
@@ -140,6 +149,7 @@ export const App: React.FC = () => {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/analyst/graph"
           element={
@@ -149,7 +159,6 @@ export const App: React.FC = () => {
           }
         />
 
-        {/* End User Routes */}
         <Route
           path="/portal/security"
           element={
@@ -159,7 +168,6 @@ export const App: React.FC = () => {
           }
         />
 
-        {/* SOC Routes */}
         <Route
           path="/soc/attack-map"
           element={
@@ -168,16 +176,7 @@ export const App: React.FC = () => {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/soc/health"
-          element={
-            <ProtectedRoute requiredRole={UserRole.SOC_RESPONDER}>
-              <SOCDashboardPage />
-            </ProtectedRoute>
-          }
-        />
 
-        {/* Data Scientist Routes */}
         <Route
           path="/datascientist/rules"
           element={
@@ -186,16 +185,7 @@ export const App: React.FC = () => {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/datascientist/shadow"
-          element={
-            <ProtectedRoute requiredRole={UserRole.DATA_SCIENTIST}>
-              <DataScientistLabPage />
-            </ProtectedRoute>
-          }
-        />
 
-        {/* Developer Routes */}
         <Route
           path="/developer/keys"
           element={
@@ -204,16 +194,7 @@ export const App: React.FC = () => {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/developer/webhooks"
-          element={
-            <ProtectedRoute requiredRole={UserRole.DEVELOPER}>
-              <DeveloperPortalPage />
-            </ProtectedRoute>
-          }
-        />
 
-        {/* Compliance Routes */}
         <Route
           path="/compliance/audit"
           element={
@@ -222,16 +203,7 @@ export const App: React.FC = () => {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/compliance/export"
-          element={
-            <ProtectedRoute requiredRole={UserRole.COMPLIANCE}>
-              <ComplianceAuditPage />
-            </ProtectedRoute>
-          }
-        />
 
-        {/* Default redirect */}
         <Route
           path="/"
           element={
