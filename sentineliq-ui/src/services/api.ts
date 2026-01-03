@@ -11,7 +11,7 @@ import {
   ApiResponse, PaginatedResponse, RiskLevel
 } from '../types';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+const API_BASE: string = (import.meta.env.VITE_API_BASE_URL as string) || '/api';
 
 class ApiService {
   private token: string | null = null;
@@ -412,8 +412,8 @@ class ApiService {
   async searchEvents(query: SearchQuery): Promise<SearchResult<RiskEvent>> {
     const params = new URLSearchParams();
     if (query.q) params.set('q', query.q);
-    if (query.risk_level) query.risk_level.forEach(l => params.append('risk_level', l));
-    if (query.recommended_action) query.recommended_action.forEach(a => params.append('action', a));
+    if (query.risk_level) query.risk_level.forEach((l: string) => params.append('risk_level', l));
+    if (query.recommended_action) query.recommended_action.forEach((a: string) => params.append('action', a));
     if (query.user_id) params.set('user_id', query.user_id);
     if (query.days) params.set('days', String(query.days));
     if (query.page !== undefined) params.set('page', String(query.page));

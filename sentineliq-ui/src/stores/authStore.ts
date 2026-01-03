@@ -25,69 +25,97 @@ interface AuthStore extends AuthState {
 
 // Role-based permissions
 const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
-  admin: ['*'],
-  risk_analyst: [
+  [UserRole.ADMIN]: ['*'],
+  [UserRole.ANALYST]: [
     'view:dashboard', 'view:events', 'view:users', 'view:analytics',
     'action:label_shadow', 'action:resolve_events', 'view:link_analysis',
     'view:fraud_rings', 'view:cohorts'
   ],
-  soc_responder: [
+  [UserRole.SOC_RESPONDER]: [
     'view:dashboard', 'view:events', 'view:alerts', 'view:link_analysis',
     'action:acknowledge_alerts', 'action:block_user', 'view:audit'
   ],
-  compliance_officer: [
+  [UserRole.COMPLIANCE]: [
     'view:dashboard', 'view:audit', 'view:reports', 'action:export_audit',
     'view:users', 'view:events'
   ],
-  data_scientist: [
+  [UserRole.DATA_SCIENTIST]: [
     'view:dashboard', 'view:analytics', 'view:ml_models', 'view:shadow_mode',
     'action:train_models', 'view:cohorts', 'view:trends'
   ],
-  developer: [
+  [UserRole.DEVELOPER]: [
     'view:dashboard', 'view:api_docs', 'view:webhooks', 'view:integrations',
     'action:manage_webhooks', 'view:rules'
   ],
-  end_user: [
+  [UserRole.END_USER]: [
     'view:own_activity', 'view:own_devices', 'action:report_issue'
   ],
 };
 
 // Demo users for each role
-const DEMO_USERS: Record<UserRole, User> = {
-  admin: {
-    id: 'admin-001', email: 'admin@sentineliq.com', username: 'Admin User',
-    role: 'admin', org_id: 'org-001', is_active: true, email_verified: true,
-    created_at: '2024-01-01T00:00:00Z', mfa_enabled: true,
+export const DEMO_USERS: Record<UserRole, User> = {
+  [UserRole.ADMIN]: {
+    id: 'admin-001', 
+    email: 'admin@sentineliq.com', 
+    username: 'admin_user',
+    name: 'Admin User',
+    role: UserRole.ADMIN, 
+    permissions: ROLE_PERMISSIONS[UserRole.ADMIN],
+    created_at: '2024-01-01T00:00:00Z',
   },
-  risk_analyst: {
-    id: 'analyst-001', email: 'analyst@sentineliq.com', username: 'Risk Analyst',
-    role: 'risk_analyst', org_id: 'org-001', is_active: true, email_verified: true,
-    created_at: '2024-01-15T00:00:00Z', mfa_enabled: false,
+  [UserRole.ANALYST]: {
+    id: 'analyst-001', 
+    email: 'analyst@sentineliq.com', 
+    username: 'risk_analyst',
+    name: 'Risk Analyst',
+    role: UserRole.ANALYST, 
+    permissions: ROLE_PERMISSIONS[UserRole.ANALYST],
+    created_at: '2024-01-15T00:00:00Z',
   },
-  soc_responder: {
-    id: 'soc-001', email: 'soc@sentineliq.com', username: 'SOC Responder',
-    role: 'soc_responder', org_id: 'org-001', is_active: true, email_verified: true,
-    created_at: '2024-02-01T00:00:00Z', mfa_enabled: true,
+  [UserRole.SOC_RESPONDER]: {
+    id: 'soc-001', 
+    email: 'soc@sentineliq.com', 
+    username: 'soc_responder',
+    name: 'SOC Responder',
+    role: UserRole.SOC_RESPONDER, 
+    permissions: ROLE_PERMISSIONS[UserRole.SOC_RESPONDER],
+    created_at: '2024-02-01T00:00:00Z',
   },
-  compliance_officer: {
-    id: 'compliance-001', email: 'compliance@sentineliq.com', username: 'Compliance Officer',
-    role: 'compliance_officer', org_id: 'org-001', is_active: true, email_verified: true,
-    created_at: '2024-02-15T00:00:00Z', mfa_enabled: true,
+  [UserRole.COMPLIANCE]: {
+    id: 'compliance-001', 
+    email: 'compliance@sentineliq.com', 
+    username: 'compliance_officer',
+    name: 'Compliance Officer',
+    role: UserRole.COMPLIANCE, 
+    permissions: ROLE_PERMISSIONS[UserRole.COMPLIANCE],
+    created_at: '2024-02-15T00:00:00Z',
   },
-  data_scientist: {
-    id: 'ds-001', email: 'datascience@sentineliq.com', username: 'Data Scientist',
-    role: 'data_scientist', org_id: 'org-001', is_active: true, email_verified: true,
-    created_at: '2024-03-01T00:00:00Z', mfa_enabled: false,
+  [UserRole.DATA_SCIENTIST]: {
+    id: 'ds-001', 
+    email: 'datascience@sentineliq.com', 
+    username: 'data_scientist',
+    name: 'Data Scientist',
+    role: UserRole.DATA_SCIENTIST, 
+    permissions: ROLE_PERMISSIONS[UserRole.DATA_SCIENTIST],
+    created_at: '2024-03-01T00:00:00Z',
   },
-  developer: {
-    id: 'dev-001', email: 'developer@sentineliq.com', username: 'Developer',
-    role: 'developer', org_id: 'org-001', is_active: true, email_verified: true,
-    created_at: '2024-03-15T00:00:00Z', mfa_enabled: false,
+  [UserRole.DEVELOPER]: {
+    id: 'dev-001', 
+    email: 'developer@sentineliq.com', 
+    username: 'developer_user',
+    name: 'Developer',
+    role: UserRole.DEVELOPER, 
+    permissions: ROLE_PERMISSIONS[UserRole.DEVELOPER],
+    created_at: '2024-03-15T00:00:00Z',
   },
-  end_user: {
-    id: 'user-001', email: 'user@example.com', username: 'End User',
-    role: 'end_user', org_id: 'org-001', is_active: true, email_verified: true,
-    created_at: '2024-04-01T00:00:00Z', mfa_enabled: false,
+  [UserRole.END_USER]: {
+    id: 'user-001', 
+    email: 'user@example.com', 
+    username: 'end_user',
+    name: 'End User',
+    role: UserRole.END_USER, 
+    permissions: ROLE_PERMISSIONS[UserRole.END_USER],
+    created_at: '2024-04-01T00:00:00Z',
   },
 };
 
@@ -145,7 +173,7 @@ export const useAuthStore = create<AuthStore>()(
       canAccessRoute: (route: string) => {
         const { user } = get();
         if (!user) return false;
-        return user.role === 'admin' || true; // Simplified for demo
+        return user.role === UserRole.ADMIN || true; // Simplified for demo
       },
     }),
     {
