@@ -47,10 +47,6 @@ COPY --from=builder --chown=nginx:nginx /app/dist /usr/share/nginx/html
 RUN mkdir -p /var/cache/nginx /var/log/nginx && \
     chown -R nginx:nginx /var/cache/nginx /var/log/nginx /etc/nginx/conf.d
 
-# Copy entrypoint script
-COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
-
 # Switch to non-root user
 USER nginx
 
@@ -61,6 +57,5 @@ EXPOSE 5173
 HEALTHCHECK --interval=15s --timeout=5s --retries=3 --start-period=30s \
     CMD curl -f http://localhost:5173/health || exit 1
 
-# Start NGINX via entrypoint
-ENTRYPOINT ["/docker-entrypoint.sh"]
+# Start NGINX directly
 CMD ["nginx", "-g", "daemon off;"]
