@@ -17,3 +17,7 @@ coverage
 .turbo
 .eslintcache
 .vite
+.idea
+*.swp
+*.swo
+*.local

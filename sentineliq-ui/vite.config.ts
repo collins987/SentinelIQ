@@ -11,14 +11,17 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    host: true,
+    host: '0.0.0.0', // Changed to bind to all interfaces for Docker
+    watch: {
+      usePolling: true, // Enable polling for Docker volumes
+    },
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://api:8000', // Use Docker service name
         changeOrigin: true,
       },
       '/ws': {
-        target: 'ws://localhost:8000',
+        target: 'ws://api:8000', // Use Docker service name
         ws: true,
       },
     },

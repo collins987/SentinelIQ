@@ -1,0 +1,84 @@
+services:
+  frontend:
+    build:
+      context: ./sentineliq-ui
+      dockerfile: Dockerfile
+      target: production  # Use production stage
+    container_name: sentineliq_frontend_prod
+    ports:
+      - "5173:5173"
+    restart: unless-stopped
+    networks:
+      - backend
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5173/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sentineliq_api_prod
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --workers 4
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      SMTP_HOST: mailhog
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # Include other services from main docker-compose.yml
+  postgres:
+    image: postgres:15-alpine
+    container_name: sentineliq_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - backend
+
+  redis:
+    image: redis:7-alpine
+    container_name: sentineliq_redis
+    command: redis-server --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - backend
+
+volumes:
+  pgdata:
+
+networks:
+  backend:
+    driver: bridge

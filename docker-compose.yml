@@ -3,7 +3,7 @@ services:
     build:
       context: ./sentineliq-ui
       dockerfile: Dockerfile
-      target: development
+      target: development  # Use development stage for docker compose
     container_name: sentineliq_frontend
     ports:
       - "5173:5173"
@@ -15,17 +15,28 @@ services:
       VITE_ENABLE_DEBUG_MODE: "false"
       VITE_LOG_LEVEL: info
     volumes:
-      - ./sentineliq-ui:/app
+      # Mount source code for hot reload
+      - ./sentineliq-ui/src:/app/src
+      - ./sentineliq-ui/public:/app/public
+      - ./sentineliq-ui/index.html:/app/index.html
+      - ./sentineliq-ui/vite.config.ts:/app/vite.config.ts
+      - ./sentineliq-ui/tsconfig.json:/app/tsconfig.json
+      - ./sentineliq-ui/tsconfig.node.json:/app/tsconfig.node.json
+      - ./sentineliq-ui/tailwind.config.js:/app/tailwind.config.js
+      - ./sentineliq-ui/postcss.config.js:/app/postcss.config.js
+      # Prevent node_modules from being overwritten
       - /app/node_modules
     restart: unless-stopped
     networks:
       - backend
+    depends_on:
+      - api
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5173/"]
-      interval: 15s
-      timeout: 5s
+      interval: 30s
+      timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 60s
 
   api:
     build:
@@ -88,8 +99,8 @@ services:
     image: mailhog/mailhog
     container_name: sentineliq_mailhog
     ports:
-      - "1025:1025"  # SMTP
-      - "8025:8025"  # Web UI
+      - "1025:1025"
+      - "8025:8025"
     restart: unless-stopped
     networks:
       - backend
@@ -104,8 +115,8 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     ports:
-      - "9000:9000"  # S3 API
-      - "9001:9001"  # Web console
+      - "9000:9000"
+      - "9001:9001"
     volumes:
       - minio_data:/data
     healthcheck:

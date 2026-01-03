@@ -7,14 +7,9 @@ WORKDIR /app
 
 # Copy package files (with dependency caching layer)
 COPY package*.json ./
-COPY tsconfig*.json ./
-COPY vite.config.ts ./
-COPY tailwind.config.js ./
-COPY postcss.config.cjs ./
-COPY index.html ./
 
-# Install dependencies
-RUN npm ci
+# Install ALL dependencies (including devDependencies for build)
+RUN npm install
 
 # Copy source code and public assets
 COPY . .
@@ -52,11 +47,17 @@ FROM node:20-alpine AS development
 
 WORKDIR /app
 
+# Copy package files
 COPY package*.json ./
-RUN npm ci
 
+# Install dependencies
+RUN npm install
+
+# Copy source code
 COPY . .
 
+# Expose port
 EXPOSE 5173
 
-CMD ["npm", "run", "dev", "--", "--host"]
+# Run development server with hot reload
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
