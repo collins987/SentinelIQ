@@ -46,16 +46,16 @@ export const SpiderwebGraph: React.FC<SpiderwebGraphProps> = ({
               return '#22c55e'
             },
             'border-width': function (ele: any) {
-              return selectedNodes.includes(ele.id()) ? 4 : 2
+              return String(selectedNodes.includes(ele.id()) ? 4 : 2)
             },
             'border-color': function (ele: any) {
               return selectedNodes.includes(ele.id()) ? '#3b82f6' : '#d1d5db'
             },
             width: function (ele: any) {
-              return ele.data('type') === 'user' ? 40 : 35
+              return String(ele.data('type') === 'user' ? 40 : 35)
             },
             height: function (ele: any) {
-              return ele.data('type') === 'user' ? 40 : 35
+              return String(ele.data('type') === 'user' ? 40 : 35)
             },
             label: 'data(label)',
             'font-size': '10px',
@@ -74,7 +74,7 @@ export const SpiderwebGraph: React.FC<SpiderwebGraphProps> = ({
             'target-arrow-shape': 'triangle',
             width: function (ele: any) {
               const weight = ele.data('weight') || 1
-              return Math.min(weight / 2, 5)
+              return String(Math.min(weight / 2, 5))
             },
             'curve-style': 'bezier',
             label: 'data(connectionCount)',
