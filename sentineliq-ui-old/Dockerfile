@@ -57,5 +57,6 @@ EXPOSE 5173
 HEALTHCHECK --interval=15s --timeout=5s --retries=3 --start-period=30s \
     CMD curl -f http://localhost:5173/health || exit 1
 
-# Start NGINX directly
+# Start NGINX
 CMD ["nginx", "-g", "daemon off;"]
+

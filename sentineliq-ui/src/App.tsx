@@ -1,98 +1,16 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-
-// ✅ FIXED: relative imports
 import { useAuthStore } from './stores/authStore'
-import { AuthLayout } from './layouts'
-
-// Pages
+import { LoginPage } from './pages/LoginPage'
+import { UnauthorizedPage } from './pages/UnauthorizedPage'
 import { AnalystTriagePage } from './pages/analyst/TriagePage'
-import { AnalystGraphPage } from './pages/analyst/GraphPage'
-import { EndUserPortalPage } from './pages/enduser/PortalPage'
 import { SOCDashboardPage } from './pages/soc/DashboardPage'
-import { DataScientistLabPage } from './pages/datascientist/LabPage'
-import { DeveloperPortalPage } from './pages/developer/PortalPage'
-import { ComplianceAuditPage } from './pages/compliance/AuditPage'
+import { APIKeysPage } from './pages/developer/APIKeysPage'
+import { RulesPage } from './pages/datascientist/RulesPage'
+import { AuditPage } from './pages/compliance/AuditPage'
+import { EndUserPortalPage } from './pages/enduser/PortalPage'
 import { UserRole } from './types'
 
-// ==========================
-// Simple Login Page
-// ==========================
-const LoginPage: React.FC = () => {
-  const { login } = useAuthStore()
-  const [email] = React.useState('analyst@sentineliq.com')
-  const [password] = React.useState('password')
-  const [error, setError] = React.useState('')
-  const [loading, setLoading] = React.useState(false)
-
-  const handleLogin = async (role: UserRole) => {
-    setLoading(true)
-    setError('')
-
-    try {
-      // Demo auth state
-      useAuthStore.setState({
-        user: {
-          id: `user_${Date.now()}`,
-          email,
-          name: 'Demo User',
-          role,
-          permissions: ['read:transactions', 'write:transactions', 'read:rules'],
-          created_at: new Date().toISOString()
-        },
-        isAuthenticated: true,
-        isLoading: false,
-        error: null
-      })
-    } catch {
-      setError('Login failed')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <AuthLayout>
-      <div className="text-center">
-        <h1 className="text-3xl font-bold mb-2 text-blue-600">SentinelIQ</h1>
-        <p className="text-gray-600 dark:text-gray-400 mb-6">
-          Fraud Detection Platform
-        </p>
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 rounded">
-            {error}
-          </div>
-        )}
-
-        <div className="space-y-2">
-          <p className="text-sm font-semibold mb-3">Demo Logins:</p>
-          {[
-            { role: UserRole.ANALYST, label: 'Risk Analyst' },
-            { role: UserRole.END_USER, label: 'End User' },
-            { role: UserRole.SOC_RESPONDER, label: 'SOC Responder' },
-            { role: UserRole.DATA_SCIENTIST, label: 'Data Scientist' },
-            { role: UserRole.DEVELOPER, label: 'Developer' },
-            { role: UserRole.COMPLIANCE, label: 'Compliance' }
-          ].map((demo) => (
-            <button
-              key={demo.role}
-              onClick={() => handleLogin(demo.role)}
-              disabled={loading}
-              className="w-full px-4 py-2 mb-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition text-sm"
-            >
-              Login as {demo.label}
-            </button>
-          ))}
-        </div>
-      </div>
-    </AuthLayout>
-  )
-}
-
-// ==========================
-// Protected Route
-// ==========================
 interface ProtectedRouteProps {
   children: React.ReactNode
   requiredRole?: UserRole
@@ -100,7 +18,7 @@ interface ProtectedRouteProps {
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
-  requiredRole
+  requiredRole,
 }) => {
   const { isAuthenticated, user } = useAuthStore()
 
@@ -115,32 +33,17 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   return <>{children}</>
 }
 
-const UnauthorizedPage = () => (
-  <AuthLayout>
-    <div className="text-center">
-      <h1 className="text-3xl font-bold text-red-600 mb-2">Access Denied</h1>
-      <p className="text-gray-600 dark:text-gray-400 mb-4">
-        You don't have permission to access this page.
-      </p>
-      <a href="/login" className="text-blue-600 hover:underline">
-        Back to Login
-      </a>
-    </div>
-  </AuthLayout>
-)
-
-// ==========================
-// App Root
-// ==========================
 export const App: React.FC = () => {
   const { isAuthenticated, user } = useAuthStore()
 
   return (
     <BrowserRouter>
       <Routes>
+        {/* Public Routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
+        {/* Analyst */}
         <Route
           path="/analyst/triage"
           element={
@@ -150,26 +53,9 @@ export const App: React.FC = () => {
           }
         />
 
+        {/* SOC */}
         <Route
-          path="/analyst/graph"
-          element={
-            <ProtectedRoute requiredRole={UserRole.ANALYST}>
-              <AnalystGraphPage />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/portal/security"
-          element={
-            <ProtectedRoute requiredRole={UserRole.END_USER}>
-              <EndUserPortalPage />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/soc/attack-map"
+          path="/soc/dashboard"
           element={
             <ProtectedRoute requiredRole={UserRole.SOC_RESPONDER}>
               <SOCDashboardPage />
@@ -177,33 +63,47 @@ export const App: React.FC = () => {
           }
         />
 
+        {/* Developer */}
+        <Route
+          path="/developer/api"
+          element={
+            <ProtectedRoute requiredRole={UserRole.DEVELOPER}>
+              <APIKeysPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Data Scientist */}
         <Route
           path="/datascientist/rules"
           element={
             <ProtectedRoute requiredRole={UserRole.DATA_SCIENTIST}>
-              <DataScientistLabPage />
+              <RulesPage />
             </ProtectedRoute>
           }
         />
 
-        <Route
-          path="/developer/keys"
-          element={
-            <ProtectedRoute requiredRole={UserRole.DEVELOPER}>
-              <DeveloperPortalPage />
-            </ProtectedRoute>
-          }
-        />
-
+        {/* Compliance */}
         <Route
           path="/compliance/audit"
           element={
             <ProtectedRoute requiredRole={UserRole.COMPLIANCE}>
-              <ComplianceAuditPage />
+              <AuditPage />
             </ProtectedRoute>
           }
         />
 
+        {/* End User */}
+        <Route
+          path="/portal"
+          element={
+            <ProtectedRoute requiredRole={UserRole.END_USER}>
+              <EndUserPortalPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Default */}
         <Route
           path="/"
           element={
@@ -212,17 +112,15 @@ export const App: React.FC = () => {
                 to={
                   user?.role === UserRole.ANALYST
                     ? '/analyst/triage'
-                    : user?.role === UserRole.END_USER
-                    ? '/portal/security'
                     : user?.role === UserRole.SOC_RESPONDER
-                    ? '/soc/attack-map'
+                    ? '/soc/dashboard'
+                    : user?.role === UserRole.DEVELOPER
+                    ? '/developer/api'
                     : user?.role === UserRole.DATA_SCIENTIST
                     ? '/datascientist/rules'
-                    : user?.role === UserRole.DEVELOPER
-                    ? '/developer/keys'
                     : user?.role === UserRole.COMPLIANCE
                     ? '/compliance/audit'
-                    : '/login'
+                    : '/portal'
                 }
                 replace
               />

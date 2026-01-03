@@ -1,7 +1,7 @@
 services:
   frontend:
     build:
-      context: ./sentineliq-ui-v2
+      context: ./sentineliq-ui
       dockerfile: Dockerfile
     container_name: sentineliq_frontend
     ports:
