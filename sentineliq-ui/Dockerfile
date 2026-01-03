@@ -43,12 +43,8 @@ RUN chmod 644 /etc/nginx/nginx.conf
 # Copy built application from builder
 COPY --from=builder --chown=nginx:nginx /app/dist /usr/share/nginx/html
 
-# Create necessary directories with correct permissions
-RUN mkdir -p /var/cache/nginx /var/log/nginx && \
-    chown -R nginx:nginx /var/cache/nginx /var/log/nginx /etc/nginx/conf.d
-
-# Switch to non-root user
-USER nginx
+# Run NGINX master as root so it can write /var/run/nginx.pid.
+# NGINX will drop privileges to the configured user for worker processes.
 
 # Expose port
 EXPOSE 5173
