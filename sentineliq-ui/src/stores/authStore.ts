@@ -160,8 +160,3 @@ export const useAuthStore = create<AuthStore>()(
 );
 
 export default useAuthStore;
-
-  setUser: (user: User | null) => {
-    set({ user, isAuthenticated: !!user })
-  },
-}))
