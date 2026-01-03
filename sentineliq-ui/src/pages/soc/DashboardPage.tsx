@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { DashboardLayout } from '@/layouts'
+import { DashboardLayout } from '../../../layouts'
 import { Card } from '@tremor/react'
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { mockSystemMetrics, mockAlerts } from '@/mockData'
-import { SystemMetrics } from '@/types'
+import { mockSystemMetrics, mockAlerts } from '../../../mockData'
+import { SystemMetrics } from '../../../types'
 
 export const SOCDashboardPage: React.FC = () => {
   const [metrics, setMetrics] = useState<SystemMetrics>(mockSystemMetrics)

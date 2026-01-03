@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
-import { DashboardLayout } from '@/layouts'
+import { DashboardLayout } from '../../../layouts'
 import { Card, Badge } from '@tremor/react'
-import { mockAuditLogs } from '@/mockData'
+import { mockAuditLogs } from '../../../mockData'
 
 export const ComplianceAuditPage: React.FC = () => {
   const [filters, setFilters] = useState({

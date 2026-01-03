@@ -1,7 +1,7 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuthStore } from '@/stores/authStore'
-import { UserRole } from '@/types'
+import { useAuthStore } from '../../stores/authStore'
+import { UserRole } from '../../types'
 
 export const Navbar: React.FC = () => {
   const navigate = useNavigate()

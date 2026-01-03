@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
-import { DashboardLayout } from '@/layouts'
+import { DashboardLayout } from '../../../layouts'
 import { Card, Badge } from '@tremor/react'
-import { mockAPIKeys, mockWebhooks } from '@/mockData'
+import { mockAPIKeys, mockWebhooks } from '../../../mockData'
 
 const localMockWebhooks = [
   {

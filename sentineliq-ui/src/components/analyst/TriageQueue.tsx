@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Card, Badge } from '@tremor/react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { RiskLevel, Transaction, TransactionStatus } from '@/types'
+import { RiskLevel, Transaction, TransactionStatus } from '../../types'
 import { formatDistanceToNow } from 'date-fns'
 
 interface TriageQueueProps {

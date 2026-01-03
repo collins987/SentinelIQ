@@ -1,6 +1,6 @@
 import React from 'react'
 import { Card, Badge, Button } from '@tremor/react'
-import { Transaction, TransactionStatus, RiskLevel } from '@/types'
+import { Transaction, TransactionStatus, RiskLevel } from '../../types'
 
 interface TransactionDetailsProps {
   transaction: Transaction | null

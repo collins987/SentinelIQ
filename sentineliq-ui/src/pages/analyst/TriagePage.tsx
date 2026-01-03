@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { DashboardLayout } from '@/layouts'
-import { TriageQueue } from '@/components/analyst/TriageQueue'
-import { TransactionDetails } from '@/components/analyst/TransactionDetails'
-import { useIncidentStore } from '@/stores/incidentStore'
-import { mockTransactions } from '@/mockData'
+import { DashboardLayout } from '../../../layouts'
+import { TriageQueue } from '../../../components/analyst/TriageQueue'
+import { TransactionDetails } from '../../../components/analyst/TransactionDetails'
+import { useIncidentStore } from '../../../stores/incidentStore'
+import { mockTransactions } from '../../../mockData'
 import { Card } from '@tremor/react'
 
 export const AnalystTriagePage: React.FC = () => {

@@ -1,8 +1,8 @@
 import React, { useState } from 'react'
-import { PortalLayout } from '@/layouts'
+import { PortalLayout } from '../../../layouts'
 import { Card, Badge } from '@tremor/react'
-import { UserSession } from '@/types'
-import { mockUserSessions } from '@/mockData'
+import { UserSession } from '../../../types'
+import { mockUserSessions } from '../../../mockData'
 
 export const EndUserPortalPage: React.FC = () => {
   const [sessions, setSessions] = useState<UserSession[]>(mockUserSessions)

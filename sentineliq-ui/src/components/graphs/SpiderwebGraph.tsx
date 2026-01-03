@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import cytoscape from 'cytoscape'
 import { Card, Badge } from '@tremor/react'
-import { GraphNode, GraphEdge, RiskLevel } from '@/types'
+import { GraphNode, GraphEdge, RiskLevel } from '../../types'
 
 interface SpiderwebGraphProps {
   nodes: GraphNode[]

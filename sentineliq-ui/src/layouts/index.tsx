@@ -1,6 +1,6 @@
 import React from 'react'
-import { Navbar, Sidebar } from '@/components/shell/Navbar'
-import { useAuthStore } from '@/stores/authStore'
+import { Navbar, Sidebar } from '../components/shell/Navbar'
+import { useAuthStore } from '../stores/authStore'
 import { Navigate } from 'react-router-dom'
 
 interface DashboardLayoutProps {
