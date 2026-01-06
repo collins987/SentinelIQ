@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { MainLayout } from './components/layout/main-layout';
 import { DashboardPage } from './pages/Dashboard';
@@ -13,9 +13,8 @@ import { SettingsPage } from './pages/settings';
 import { NotificationsPage } from './pages/notifications';
 import { useUIStore } from './stores';
 import { ToastContainer } from './components/ui/toast';
+import { config, useMockData } from './lib/config';
 import { useRealTimeData } from './hooks/useRealTimeData';
-import { config } from './lib/config';
-
 
 function ThemeProvider({ children }: { children: React.ReactNode }) {
   const { theme } = useUIStore();
@@ -36,6 +35,66 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
+
+  // Initialize real-time data only if mock mode is enabled
+  const { isMockMode } = useRealTimeData({
+    enablePolling: useMockData(), // Only poll in mock mode
+    pollingInterval: 5000,
+    onError: (error) => {
+      console.error('[App] Real-time data error:', error);
+    },
+  });
+
+  useEffect(() => {
+    const initialize = async () => {
+      try {
+        // Log startup info
+        console.log(`[App] Starting ${config.appName} v${config.appVersion}`);
+        console.log(`[App] Mode: ${config.mode}, Mock Data: ${isMockMode ? 'ON' : 'OFF'}`);
+
+        // Add any async initialization here
+        setIsInitialized(true);
+      } catch (error) {
+        console.error('[App] Initialization failed:', error);
+        setInitError(error instanceof Error ? error.message : 'Unknown error');
+      }
+    };
+
+    initialize();
+  }, [isMockMode]);
+
+  // Show error state
+  if (initError) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-100">
+        <div className="p-6 bg-white rounded-lg shadow-lg">
+          <h1 className="text-xl font-bold text-red-600">Initialization Error</h1>
+          <p className="mt-2 text-gray-600">{initError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show loading state
+  if (!isInitialized) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading {config.appName}...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Enable real-time data updates (respects config)
   useRealTimeData({ 
     enablePolling: config.enableRealTimeUpdates, 

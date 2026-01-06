@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useJobsStore, useEventsStore, useSystemHealthStore, useNotificationsStore } from '../stores';
+import { useMockData } from '../lib/config';
 
 interface UseRealTimeDataOptions {
   enablePolling?: boolean;
@@ -18,6 +19,15 @@ export function useRealTimeData(options: UseRealTimeDataOptions = {}) {
   const jobs = useJobsStore((s) => s.jobs);
   const addNotification = useNotificationsStore((s) => s.addNotification);
   const setServices = useSystemHealthStore((s) => s.setServices);
+
+  const isMockMode = useMockData();
+
+  const cleanup = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  }, []);
 
   const generateMockEvent = useCallback(() => {
     const types = ['user.login', 'user.logout', 'api.request', 'job.started', 'job.completed', 'system.alert'];

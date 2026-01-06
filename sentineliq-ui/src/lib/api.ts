@@ -1,149 +1,50 @@
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
+import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios';
+import { config } from './config';
 
-interface RequestTracker {
-  id: string;
-  method: string;
-  url: string;
-  startTime: number;
-  endTime?: number;
-  status?: number;
-  error?: string;
-}
+// Create axios instance with defaults
+const api: AxiosInstance = axios.create({
+  baseURL: config.apiBaseUrl,
+  timeout: 30000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
 
-class APIClient {
-  private client: AxiosInstance;
-  private activeRequests: Map<string, RequestTracker> = new Map();
-  private requestHistory: RequestTracker[] = [];
-  private maxHistory = 100;
-
-  constructor() {
-    this.client = axios.create({
-      baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
-      timeout: parseInt(import.meta.env.VITE_API_TIMEOUT || '30000'),
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    this.setupInterceptors();
-  }
-
-  private setupInterceptors() {
-    // Request interceptor
-    this.client.interceptors.request.use(
-      (config) => {
-        const requestId = crypto.randomUUID();
-        config.headers['X-Request-ID'] = requestId;
-
-        const tracker: RequestTracker = {
-          id: requestId,
-          method: config.method?.toUpperCase() || 'GET',
-          url: config.url || '',
-          startTime: Date.now(),
-        };
-        this.activeRequests.set(requestId, tracker);
-
-        // Add auth token if available
-        const token = localStorage.getItem('auth_token');
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
-        }
-
-        return config;
-      },
-      (error) => Promise.reject(error)
-    );
-
-    // Response interceptor
-    this.client.interceptors.response.use(
-      (response) => {
-        const requestId = response.config.headers['X-Request-ID'] as string;
-        this.completeRequest(requestId, response.status);
-        return response;
-      },
-      (error: AxiosError) => {
-        const requestId = error.config?.headers?.['X-Request-ID'] as string;
-        if (requestId) {
-          this.completeRequest(requestId, error.response?.status, error.message);
-        }
-
-        // Handle specific error cases
-        if (error.response?.status === 401) {
-          // Unauthorized - redirect to login
-          window.location.href = '/login';
-        }
-
-        return Promise.reject(error);
-      }
-    );
-  }
-
-  private completeRequest(id: string, status?: number, error?: string) {
-    const tracker = this.activeRequests.get(id);
-    if (tracker) {
-      tracker.endTime = Date.now();
-      tracker.status = status;
-      tracker.error = error;
-      
-      this.requestHistory.unshift(tracker);
-      if (this.requestHistory.length > this.maxHistory) {
-        this.requestHistory.pop();
-      }
-      
-      this.activeRequests.delete(id);
+// Request interceptor - add auth token
+api.interceptors.request.use(
+  (requestConfig) => {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      requestConfig.headers.Authorization = `Bearer ${token}`;
     }
+    return requestConfig;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Response interceptor - handle errors globally
+api.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError) => {
+    // Handle network errors gracefully
+    if (!error.response) {
+      console.error('[API] Network error:', error.message);
+      return Promise.reject(new Error('Network error - please check your connection'));
+    }
+
+    // Handle 401 - redirect to login
+    if (error.response.status === 401) {
+      localStorage.removeItem('auth_token');
+      window.location.href = '/login';
+    }
+
+    // Handle other errors
+    const message = (error.response.data as { detail?: string })?.detail || error.message;
+    return Promise.reject(new Error(message));
   }
+);
 
-  // API Methods
-  async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    const response = await this.client.get<T>(url, config);
-    return response.data;
-  }
-
-  async post<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-    const response = await this.client.post<T>(url, data, config);
-    return response.data;
-  }
-
-  async put<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-    const response = await this.client.put<T>(url, data, config);
-    return response.data;
-  }
-
-  async patch<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-    const response = await this.client.patch<T>(url, data, config);
-    return response.data;
-  }
-
-  async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    const response = await this.client.delete<T>(url, config);
-    return response.data;
-  }
-
-  // Utility methods
-  getActiveRequests(): RequestTracker[] {
-    return Array.from(this.activeRequests.values());
-  }
-
-  getRequestHistory(): RequestTracker[] {
-    return [...this.requestHistory];
-  }
-
-  getAverageLatency(): number {
-    const completed = this.requestHistory.filter((r) => r.endTime);
-    if (completed.length === 0) return 0;
-    
-    const totalLatency = completed.reduce(
-      (sum, r) => sum + (r.endTime! - r.startTime),
-      0
-    );
-    return Math.round(totalLatency / completed.length);
-  }
-}
-
-export const api = new APIClient();
-
-// Typed API endpoints
+// API Endpoints
 export const endpoints = {
   // Auth
   auth: {
@@ -156,63 +57,51 @@ export const endpoints = {
   // Dashboard
   dashboard: {
     metrics: () => api.get('/api/v1/dashboard/metrics'),
-    recentActivity: () => api.get('/api/v1/dashboard/activity'),
-  },
-
-  // Jobs
-  jobs: {
-    list: (params?: Record<string, unknown>) =>
-      api.get('/api/v1/jobs', { params }),
-    get: (id: string) => api.get(`/api/v1/jobs/${id}`),
-    cancel: (id: string) => api.post(`/api/v1/jobs/${id}/cancel`),
-    retry: (id: string) => api.post(`/api/v1/jobs/${id}/retry`),
-    queues: () => api.get('/api/v1/jobs/queues'),
-  },
-
-  // Events
-  events: {
-    list: (params?: Record<string, unknown>) =>
-      api.get('/api/v1/events', { params }),
-    stream: () => api.get('/api/v1/events/stream'),
-  },
-
-  // System Health
-  health: {
-    status: () => api.get('/api/v1/health'),
-    services: () => api.get('/api/v1/health/services'),
+    activity: () => api.get('/api/v1/dashboard/activity'),
   },
 
   // Users
   users: {
-    list: (params?: Record<string, unknown>) =>
-      api.get('/api/v1/users', { params }),
+    list: () => api.get('/api/v1/users'),
     get: (id: string) => api.get(`/api/v1/users/${id}`),
     create: (data: unknown) => api.post('/api/v1/users', data),
     update: (id: string, data: unknown) => api.patch(`/api/v1/users/${id}`, data),
     delete: (id: string) => api.delete(`/api/v1/users/${id}`),
   },
 
+  // Jobs
+  jobs: {
+    list: () => api.get('/api/v1/jobs'),
+    get: (id: string) => api.get(`/api/v1/jobs/${id}`),
+    cancel: (id: string) => api.post(`/api/v1/jobs/${id}/cancel`),
+    retry: (id: string) => api.post(`/api/v1/jobs/${id}/retry`),
+    queues: () => api.get('/api/v1/jobs/queues'),
+  },
+
   // Audit
   audit: {
-    list: (params?: Record<string, unknown>) =>
-      api.get('/api/v1/audit', { params }),
+    list: () => api.get('/api/v1/audit'),
     get: (id: string) => api.get(`/api/v1/audit/${id}`),
+  },
+
+  // Events
+  events: {
+    list: () => api.get('/api/v1/events'),
+    ingest: (data: unknown) => api.post('/api/v1/events/ingest', data),
+  },
+
+  // Health
+  health: {
+    check: () => api.get('/health'),
+    status: () => api.get('/api/v1/health'),
+    services: () => api.get('/api/v1/health/services'),
   },
 
   // Analytics
   analytics: {
     overview: () => api.get('/api/v1/analytics/overview'),
-    timeseries: (metric: string, params?: Record<string, unknown>) =>
-      api.get(`/api/v1/analytics/timeseries/${metric}`, { params }),
-  },
-
-  // Roles
-  roles: {
-    list: (params?: Record<string, unknown>) =>
-      api.get('/api/v1/roles', { params }),
-    get: (id: string) => api.get(`/api/v1/roles/${id}`),
-    create: (data: unknown) => api.post('/api/v1/roles', data),
-    update: (id: string, data: unknown) => api.patch(`/api/v1/roles/${id}`, data),
-    delete: (id: string) => api.delete(`/api/v1/roles/${id}`),
+    timeseries: (metric: string) => api.get(`/api/v1/analytics/timeseries/${metric}`),
   },
 };
+
+export default api;
