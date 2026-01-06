@@ -205,4 +205,14 @@ export const endpoints = {
     timeseries: (metric: string, params?: Record<string, unknown>) =>
       api.get(`/api/v1/analytics/timeseries/${metric}`, { params }),
   },
+
+  // Roles
+  roles: {
+    list: (params?: Record<string, unknown>) =>
+      api.get('/api/v1/roles', { params }),
+    get: (id: string) => api.get(`/api/v1/roles/${id}`),
+    create: (data: unknown) => api.post('/api/v1/roles', data),
+    update: (id: string, data: unknown) => api.patch(`/api/v1/roles/${id}`, data),
+    delete: (id: string) => api.delete(`/api/v1/roles/${id}`),
+  },
 };

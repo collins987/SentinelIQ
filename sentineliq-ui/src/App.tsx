@@ -14,6 +14,7 @@ import { NotificationsPage } from './pages/notifications';
 import { useUIStore } from './stores';
 import { ToastContainer } from './components/ui/toast';
 import { useRealTimeData } from './hooks/useRealTimeData';
+import { config } from './lib/config';
 
 
 function ThemeProvider({ children }: { children: React.ReactNode }) {
@@ -35,8 +36,12 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  // Enable real-time data updates with mock data
-  useRealTimeData({ enablePolling: true, pollingInterval: 5000, enableMockData: true });
+  // Enable real-time data updates (respects config)
+  useRealTimeData({ 
+    enablePolling: config.enableRealTimeUpdates, 
+    pollingInterval: config.pollingInterval, 
+    enableMockData: config.enableMockData 
+  });
 
   return (
     <ThemeProvider>

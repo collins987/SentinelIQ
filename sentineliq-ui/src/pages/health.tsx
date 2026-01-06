@@ -1,11 +1,11 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { cn } from '../lib/utils';
 import { useSystemHealthStore } from '../stores';
 import { AnalyticsChart } from '../components/dashboard/analytics-chart';
 import { Button } from '../components/ui/button';
 import { toast } from '../components/ui/toast';
-import { simulateApiDelay } from '../hooks/useActions';
 import { formatDistanceToNow } from 'date-fns';
+import { healthService, type HealthStatus } from '../services/healthService';
 import {
   Server,
   Database,
@@ -20,6 +20,7 @@ import {
   Cpu,
   MemoryStick,
   Clock,
+  AlertCircle as AlertCircleIcon,
 } from 'lucide-react';
 import type { ServiceHealth, SystemStatus } from '../types';
 
@@ -46,29 +47,51 @@ const generateLatencyData = () =>
   }));
 
 export function HealthPage() {
-  const { services, overallStatus, lastCheck, setServices } = useSystemHealthStore();
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const { setServices } = useSystemHealthStore();
+  const [healthData, setHealthData] = useState<HealthStatus | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleRefresh = useCallback(async () => {
-    setIsRefreshing(true);
-    await simulateApiDelay(1500);
-    
-    // Simulate refreshing health data
-    setServices([
-      { name: 'API', status: 'healthy', latency: 30 + Math.floor(Math.random() * 40), uptime: 99.9 + Math.random() * 0.1, lastCheck: new Date().toISOString() },
-      { name: 'Database', status: 'healthy', latency: 5 + Math.floor(Math.random() * 15), uptime: 99.95 + Math.random() * 0.05, lastCheck: new Date().toISOString() },
-      { name: 'Redis', status: 'healthy', latency: 1 + Math.floor(Math.random() * 5), uptime: 100, lastCheck: new Date().toISOString() },
-      { name: 'Storage', status: Math.random() > 0.8 ? 'degraded' : 'healthy', latency: 100 + Math.floor(Math.random() * 200), uptime: 98 + Math.random() * 2, lastCheck: new Date().toISOString() },
-    ]);
-    
-    toast('success', 'Health check complete', 'All services have been checked');
-    setIsRefreshing(false);
+  const loadHealthData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await healthService.getStatus();
+      setHealthData(data);
+      
+      // Update store for compatibility with existing components
+      const servicesArray = Object.entries(data.services).map(([name, service]) => ({
+        name: name.charAt(0).toUpperCase() + name.slice(1),
+        status: service.status === 'up' ? 'healthy' : service.status === 'degraded' ? 'degraded' : 'critical',
+        latency: service.latency,
+        uptime: 99.9,
+        lastCheck: service.lastCheck,
+      }));
+      setServices(servicesArray as any);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to load health data';
+      setError(errorMsg);
+      toast.error(errorMsg);
+    } finally {
+      setIsLoading(false);
+    }
   }, [setServices]);
 
+  useEffect(() => {
+    loadHealthData();
+  }, [loadHealthData]);
+
+  const overallStatus = healthData?.status === 'healthy' ? 'healthy' : healthData?.status === 'degraded' ? 'degraded' : 'critical';
   const overallConfig = statusConfig[overallStatus];
   const OverallIcon = overallConfig.icon;
 
-  const latencyData = useMemo(() => generateLatencyData(), []);
+  const latencyData = useMemo(() => {
+    if (!healthData) return [];
+    return Array.from({ length: 24 }, (_, i) => ({
+      name: `${i}:00`,
+      value: Math.floor(Math.random() * 100) + 20,
+    }));
+  }, [healthData]);
 
   return (
     <div className="space-y-6">
@@ -81,56 +104,79 @@ export function HealthPage() {
           </p>
         </div>
         <Button
-          onClick={handleRefresh}
-          isLoading={isRefreshing}
+          onClick={loadHealthData}
+          isLoading={isLoading}
           loadingText="Checking..."
-          leftIcon={<RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />}
+          leftIcon={<RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />}
         >
           Refresh Status
         </Button>
       </div>
 
+      {error && (
+        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-900 dark:border-red-900 dark:bg-red-900/20 dark:text-red-400">
+          <AlertCircleIcon className="h-4 w-4 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium">{error}</p>
+          </div>
+          <button onClick={loadHealthData} className="text-sm font-medium hover:underline">
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Overall Status Banner */}
-      <div className={cn('rounded-xl border p-6', overallStatus === 'healthy' ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-900/20' : overallStatus === 'degraded' ? 'border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-900/20' : 'border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-900/20')}>
-        <div className="flex items-center gap-4">
-          <div className={cn('rounded-full p-3', overallConfig.bg)}>
-            <OverallIcon className={cn('h-8 w-8', overallConfig.color)} />
+      {healthData && (
+        <>
+          <div className={cn('rounded-xl border p-6', overallStatus === 'healthy' ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-900/20' : overallStatus === 'degraded' ? 'border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-900/20' : 'border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-900/20')}>
+            <div className="flex items-center gap-4">
+              <div className={cn('rounded-full p-3', overallConfig.bg)}>
+                <OverallIcon className={cn('h-8 w-8', overallConfig.color)} />
+              </div>
+              <div>
+                <h2 className={cn('text-xl font-semibold', overallConfig.color)}>
+                  {overallStatus === 'healthy' ? 'All Systems Operational' : overallStatus === 'degraded' ? 'Partial System Degradation' : 'System Issues Detected'}
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Version {healthData.version} • Uptime: {Math.floor(healthData.uptime / 86400)} days
+                </p>
+              </div>
+            </div>
           </div>
-          <div>
-            <h2 className={cn('text-xl font-semibold', overallConfig.color)}>
-              {overallStatus === 'healthy' ? 'All Systems Operational' : overallStatus === 'degraded' ? 'Partial System Degradation' : 'System Issues Detected'}
-            </h2>
-            {lastCheck && (
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Last checked {formatDistanceToNow(new Date(lastCheck), { addSuffix: true })}
-              </p>
-            )}
+
+          {/* Services Grid */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {Object.entries(healthData.services).map(([name, service]) => (
+              <ServiceCard 
+                key={name} 
+                service={{
+                  name: name.charAt(0).toUpperCase() + name.slice(1),
+                  status: service.status === 'up' ? 'healthy' : service.status === 'degraded' ? 'degraded' : 'critical',
+                  latency: service.latency,
+                  uptime: 99.9,
+                  lastCheck: service.lastCheck,
+                } as any}
+              />
+            ))}
           </div>
-        </div>
-      </div>
 
-      {/* Services Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {services.map((service) => (
-          <ServiceCard key={service.name} service={service} />
-        ))}
-      </div>
+          {/* Charts */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <AnalyticsChart title="API Latency (24h)" data={latencyData} type="area" color="#3b82f6" height={250} />
+            <AnalyticsChart title="Request Volume" data={latencyData.map((d) => ({ ...d, value: d.value * 50 }))} type="bar" color="#10b981" height={250} />
+          </div>
 
-      {/* Charts */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <AnalyticsChart title="API Latency (24h)" data={latencyData} type="area" color="#3b82f6" height={250} />
-        <AnalyticsChart title="Request Volume" data={latencyData.map((d) => ({ ...d, value: d.value * 50 }))} type="bar" color="#10b981" height={250} />
-      </div>
-
-      {/* Resource Usage */}
-      <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
-        <h3 className="mb-4 font-semibold text-gray-900 dark:text-white">Resource Usage</h3>
-        <div className="grid gap-6 md:grid-cols-3">
-          <ResourceGauge icon={Cpu} label="CPU Usage" value={45} color="blue" />
-          <ResourceGauge icon={MemoryStick} label="Memory Usage" value={68} color="purple" />
-          <ResourceGauge icon={HardDrive} label="Disk Usage" value={32} color="emerald" />
-        </div>
-      </div>
+          {/* Resource Usage */}
+          <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+            <h3 className="mb-4 font-semibold text-gray-900 dark:text-white">Resource Usage</h3>
+            <div className="grid gap-6 md:grid-cols-3">
+              <ResourceGauge icon={Cpu} label="CPU Usage" value={Math.round(healthData.metrics.cpuUsage)} color="blue" />
+              <ResourceGauge icon={MemoryStick} label="Memory Usage" value={Math.round(healthData.metrics.memoryUsage)} color="purple" />
+              <ResourceGauge icon={HardDrive} label="Disk Usage" value={32} color="emerald" />
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Uptime History */}
       <div className="rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">

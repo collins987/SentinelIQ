@@ -1,13 +1,14 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { cn } from '../lib/utils';
 import { DataTable } from '../components/ui/data-table';
 import { Button } from '../components/ui/button';
 import { Modal, ConfirmModal } from '../components/ui/modal';
 import { toast } from '../components/ui/toast';
-import { exportToCsv, useAsyncAction, simulateApiDelay } from '../hooks/useActions';
+import { exportToCsv, useAsyncAction } from '../hooks/useActions';
 import { formatDistanceToNow, format, subDays } from 'date-fns';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { AuditEntry, AuditChange } from '../types';
+import { auditService } from '../services/auditService';
 import {
   History,
   Filter,
@@ -23,15 +24,9 @@ import {
   X,
   Save,
   MoreVertical,
+  RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
-
-// Mock audit data
-const mockAuditEntries: AuditEntry[] = [
-  { id: '1', action: 'create', entityType: 'user', entityId: 'u123', userId: 'admin1', userName: 'Admin User', timestamp: new Date().toISOString(), changes: [{ field: 'email', oldValue: null, newValue: 'new@example.com' }], ipAddress: '192.168.1.1', userAgent: 'Chrome/120.0' },
-  { id: '2', action: 'update', entityType: 'settings', entityId: 's1', userId: 'admin1', userName: 'Admin User', timestamp: new Date(Date.now() - 3600000).toISOString(), changes: [{ field: 'theme', oldValue: 'light', newValue: 'dark' }], ipAddress: '192.168.1.1', userAgent: 'Chrome/120.0' },
-  { id: '3', action: 'delete', entityType: 'api_key', entityId: 'ak456', userId: 'user2', userName: 'John Doe', timestamp: new Date(Date.now() - 7200000).toISOString(), changes: [], ipAddress: '10.0.0.5', userAgent: 'Firefox/121.0' },
-  { id: '4', action: 'view', entityType: 'report', entityId: 'r789', userId: 'user3', userName: 'Jane Smith', timestamp: new Date(Date.now() - 86400000).toISOString(), changes: [], ipAddress: '172.16.0.10', userAgent: 'Safari/17.0' },
-];
 
 const actionConfig: Record<string, { icon: React.ElementType; color: string; bg: string }> = {
   create: { icon: Plus, color: 'text-emerald-500', bg: 'bg-emerald-100 dark:bg-emerald-900/30' },
@@ -41,8 +36,8 @@ const actionConfig: Record<string, { icon: React.ElementType; color: string; bg:
 };
 
 export function AuditPage() {
-  // State management for audit entries (mutable for CRUD)
-  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>(mockAuditEntries);
+  // State management for audit entries
+  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
   const [actionFilter, setActionFilter] = useState<string>('all');
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -50,32 +45,63 @@ export function AuditPage() {
     start: null, 
     end: null 
   });
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // CRUD modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingEntry, setEditingEntry] = useState<AuditEntry | null>(null);
   const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
   const [viewingEntry, setViewingEntry] = useState<AuditEntry | null>(null);
+  const { isLoading: actionLoading, execute: executeAction } = useAsyncAction();
+
+  // Load audit entries
+  const loadAuditEntries = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const params: any = {};
+      if (actionFilter !== 'all') params.action = actionFilter;
+      if (dateRange.start) params.startDate = dateRange.start.toISOString();
+      if (dateRange.end) params.endDate = dateRange.end.toISOString();
+      
+      const data = await auditService.list(params);
+      setAuditEntries(data);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to load audit entries';
+      setError(errorMsg);
+      toast.error(errorMsg);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [actionFilter, dateRange]);
+
+  useEffect(() => {
+    loadAuditEntries();
+  }, [loadAuditEntries]);
 
   // Create new audit entry
   const handleCreateAuditEntry = async (entryData: Omit<AuditEntry, 'id' | 'timestamp'>) => {
-    await simulateApiDelay();
-    const newEntry: AuditEntry = {
-      ...entryData,
-      id: crypto.randomUUID(),
-      timestamp: new Date().toISOString(),
-    };
-    setAuditEntries(prev => [newEntry, ...prev]);
-    toast('success', 'Audit entry created', 'New audit record has been added to the log');
-    setShowCreateModal(false);
+    await executeAction(
+      async () => {
+        await auditService.create(entryData);
+        await loadAuditEntries();
+        setShowCreateModal(false);
+      },
+      { successMessage: 'Audit entry created successfully' }
+    );
   };
 
   // Update existing audit entry
   const handleUpdateAuditEntry = async (entryData: AuditEntry) => {
-    await simulateApiDelay();
-    setAuditEntries(prev => prev.map(e => e.id === entryData.id ? entryData : e));
-    toast('success', 'Audit entry updated', 'Changes have been saved successfully');
-    setEditingEntry(null);
+    await executeAction(
+      async () => {
+        await auditService.update(entryData.id, entryData);
+        await loadAuditEntries();
+        setEditingEntry(null);
+      },
+      { successMessage: 'Audit entry updated successfully' }
+    );
   };
 
   // Soft delete audit entry (mark as deleted but preserve for compliance)

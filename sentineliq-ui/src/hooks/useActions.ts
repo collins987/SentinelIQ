@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { toast } from '../components/ui/toast';
+import { config, getMockDelay } from '../lib/config';
 
 /**
  * Custom hook for handling async actions with loading states and toast feedback
@@ -43,9 +44,18 @@ export function useAsyncAction<T = void>() {
 
 /**
  * Simulate API delay for mock operations
+ * Uses configuration to respect environment settings
+ * Only delays when mock data is enabled
  */
-export const simulateApiDelay = (ms: number = 800): Promise<void> => 
-  new Promise(resolve => setTimeout(resolve, ms));
+export const simulateApiDelay = (ms?: number): Promise<void> => {
+  // Only simulate delay in mock mode
+  if (!config.enableMockData) {
+    return Promise.resolve();
+  }
+  
+  const delay = ms ?? getMockDelay();
+  return new Promise(resolve => setTimeout(resolve, delay));
+};
 
 /**
  * Copy text to clipboard with toast feedback
