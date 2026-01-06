@@ -2,7 +2,7 @@ services:
   # Backend API
   sentineliq-api:
     build:
-      context: ./sentineliq-api
+      context: .
       dockerfile: Dockerfile
     container_name: sentineliq-api
     ports:
@@ -26,6 +26,7 @@ services:
     build:
       context: ./sentineliq-ui
       dockerfile: Dockerfile
+      target: development
     container_name: sentineliq-ui
     ports:
       - "5173:5173"
