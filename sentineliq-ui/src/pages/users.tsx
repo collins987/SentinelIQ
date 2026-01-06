@@ -1,15 +1,14 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { cn } from '../lib/utils';
 import { DataTable } from '../components/ui/data-table';
 import { StatusBadge } from '../components/ui/status-badge';
 import { Modal, ConfirmModal } from '../components/ui/modal';
 import { Button } from '../components/ui/button';
 import { toast } from '../components/ui/toast';
-import { useAsyncAction } from '../hooks/useActions';
+import { useAsyncAction, simulateApiDelay } from '../hooks/useActions';
 import { formatDistanceToNow } from 'date-fns';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { User } from '../types';
-import { usersService } from '../services/usersService';
 import {
   Users,
   UserPlus,
@@ -19,9 +18,14 @@ import {
   X,
   Mail,
   Shield,
-  AlertCircle,
-  RefreshCw,
 } from 'lucide-react';
+
+const mockUsers: User[] = [
+  { id: '1', email: 'admin@sentineliq.io', name: 'Admin User', status: 'active', roles: [{ id: 'r1', name: 'Admin', description: '', permissions: [], userCount: 1, createdAt: '', updatedAt: '' }], lastLogin: new Date().toISOString(), createdAt: new Date(Date.now() - 86400000 * 30).toISOString() },
+  { id: '2', email: 'john@example.com', name: 'John Doe', status: 'active', roles: [{ id: 'r2', name: 'User', description: '', permissions: [], userCount: 5, createdAt: '', updatedAt: '' }], lastLogin: new Date(Date.now() - 3600000).toISOString(), createdAt: new Date(Date.now() - 86400000 * 15).toISOString() },
+  { id: '3', email: 'jane@example.com', name: 'Jane Smith', status: 'inactive', roles: [{ id: 'r2', name: 'User', description: '', permissions: [], userCount: 5, createdAt: '', updatedAt: '' }], createdAt: new Date(Date.now() - 86400000 * 7).toISOString() },
+  { id: '4', email: 'bob@example.com', name: 'Bob Wilson', status: 'suspended', roles: [], createdAt: new Date(Date.now() - 86400000 * 2).toISOString() },
+];
 
 const statusVariants: Record<string, 'success' | 'warning' | 'error' | 'default'> = {
   active: 'success',
@@ -44,65 +48,28 @@ function StatCard({ label, value, icon: Icon, color = 'text-gray-600' }: { label
 }
 
 export function UsersPage() {
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<User[]>(mockUsers);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const { isLoading: actionLoading, execute: executeAction } = useAsyncAction();
-
-  // Load users on mount
-  const loadUsers = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const data = await usersService.list();
-      setUsers(data);
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to load users';
-      setError(errorMsg);
-      toast.error(errorMsg);
-    } finally {
-      setIsLoading(false);
-    }
+  const handleAddUser = useCallback((user: Omit<User, 'id' | 'createdAt'>) => {
+    const newUser: User = {
+      ...user,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+    };
+    setUsers(prev => [newUser, ...prev]);
   }, []);
 
-  useEffect(() => {
-    loadUsers();
-  }, [loadUsers]);
+  const handleUpdateUser = useCallback((userId: string, updates: Partial<User>) => {
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updates } : u));
+  }, []);
 
-  const handleAddUser = useCallback(async (user: Omit<User, 'id' | 'createdAt'>) => {
-    await executeAction(
-      async () => {
-        const newUser = await usersService.create(user);
-        setUsers((prev) => [newUser, ...prev]);
-      },
-      { successMessage: 'User created successfully' }
-    );
-  }, [executeAction]);
-
-  const handleUpdateUser = useCallback(async (userId: string, updates: Partial<User>) => {
-    await executeAction(
-      async () => {
-        const updatedUser = await usersService.update(userId, updates);
-        setUsers((prev) => prev.map((u) => (u.id === userId ? updatedUser : u)));
-      },
-      { successMessage: 'User updated successfully' }
-    );
-  }, [executeAction]);
-
-  const handleDeleteUser = useCallback(async (userId: string) => {
-    await executeAction(
-      async () => {
-        await usersService.delete(userId);
-        setUsers((prev) => prev.filter((u) => u.id !== userId));
-      },
-      { successMessage: 'User deleted successfully' }
-    );
-  }, [executeAction]);
+  const handleDeleteUser = useCallback((userId: string) => {
+    setUsers(prev => prev.filter(u => u.id !== userId));
+  }, []);
 
   const filteredUsers = useMemo(() => {
     if (statusFilter === 'all') return users;
@@ -196,37 +163,11 @@ export function UsersPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Users</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Manage user accounts and access</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={loadUsers}
-            disabled={isLoading || actionLoading}
-            className="flex items-center gap-2 rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-50 dark:bg-gray-800 dark:text-gray-300"
-            title="Refresh"
-          >
-            <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
-          </button>
-          <button
-            onClick={() => setShowAddModal(true)}
-            disabled={isLoading || actionLoading}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-          >
-            <UserPlus className="h-4 w-4" />
-            Add User
-          </button>
-        </div>
+        <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+          <UserPlus className="h-4 w-4" />
+          Add User
+        </button>
       </div>
-
-      {error && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-900 dark:border-red-900 dark:bg-red-900/20 dark:text-red-400">
-          <AlertCircle className="h-4 w-4 flex-shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-medium">{error}</p>
-          </div>
-          <button onClick={loadUsers} className="text-sm font-medium hover:underline">
-            Retry
-          </button>
-        </div>
-      )}
 
       <div className="grid gap-4 sm:grid-cols-4">
         <StatCard label="Total Users" value={stats.total} icon={Users} />
@@ -253,24 +194,12 @@ export function UsersPage() {
         ))}
       </div>
 
-      {isLoading ? (
-        <div className="flex h-64 items-center justify-center">
-          <div className="text-center">
-            <RefreshCw className="mx-auto h-8 w-8 animate-spin text-gray-400" />
-            <p className="mt-2 text-sm text-gray-500">Loading users...</p>
-          </div>
-        </div>
-      ) : (
-        <DataTable columns={columns} data={filteredUsers} searchKey="name" searchPlaceholder="Search users..." />
-      )}
+      <DataTable columns={columns} data={filteredUsers} searchKey="name" searchPlaceholder="Search users..." />
 
       {showAddModal && (
         <AddUserModal 
           onClose={() => setShowAddModal(false)} 
-          onSubmit={async (user) => {
-            await handleAddUser(user);
-            setShowAddModal(false);
-          }}
+          onSubmit={handleAddUser}
         />
       )}
 
@@ -278,8 +207,8 @@ export function UsersPage() {
         <EditUserModal
           user={editingUser}
           onClose={() => setEditingUser(null)}
-          onSubmit={async (updates) => {
-            await handleUpdateUser(editingUser.id, updates);
+          onSubmit={(updates) => {
+            handleUpdateUser(editingUser.id, updates);
             setEditingUser(null);
           }}
         />
@@ -289,8 +218,9 @@ export function UsersPage() {
         <ConfirmModal
           isOpen={true}
           onClose={() => setDeletingUser(null)}
-          onConfirm={async () => {
-            await handleDeleteUser(deletingUser.id);
+          onConfirm={() => {
+            handleDeleteUser(deletingUser.id);
+            toast('success', 'User deleted', `${deletingUser.name} has been removed`);
             setDeletingUser(null);
           }}
           title="Delete User"

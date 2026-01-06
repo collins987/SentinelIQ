@@ -1,11 +1,10 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { cn } from '../lib/utils';
 import { Modal, ConfirmModal } from '../components/ui/modal';
 import { Button } from '../components/ui/button';
 import { toast } from '../components/ui/toast';
-import { useAsyncAction } from '../hooks/useActions';
+import { useAsyncAction, simulateApiDelay } from '../hooks/useActions';
 import type { Role, Permission } from '../types';
-import { rolesService } from '../services/rolesService';
 import {
   Shield,
   Plus,
@@ -17,9 +16,13 @@ import {
   ChevronDown,
   ChevronRight,
   Save,
-  RefreshCw,
-  AlertCircle,
 } from 'lucide-react';
+
+const mockRoles: Role[] = [
+  { id: 'r1', name: 'Admin', description: 'Full system access', permissions: [{ id: 'p1', resource: '*', action: '*' }], userCount: 3, createdAt: '', updatedAt: '' },
+  { id: 'r2', name: 'Editor', description: 'Can edit content and manage users', permissions: [{ id: 'p2', resource: 'users', action: 'read' }, { id: 'p3', resource: 'users', action: 'update' }], userCount: 8, createdAt: '', updatedAt: '' },
+  { id: 'r3', name: 'Viewer', description: 'Read-only access', permissions: [{ id: 'p4', resource: '*', action: 'read' }], userCount: 25, createdAt: '', updatedAt: '' },
+];
 
 const permissionMatrix = {
   users: ['create', 'read', 'update', 'delete'],
@@ -31,36 +34,14 @@ const permissionMatrix = {
 };
 
 export function RolesPage() {
-  const [roles, setRoles] = useState<Role[]>([]);
+  const [roles, setRoles] = useState<Role[]>(mockRoles);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [expandedResources, setExpandedResources] = useState<string[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [deletingRole, setDeletingRole] = useState<Role | null>(null);
   const [rolePermissions, setRolePermissions] = useState<Record<string, Permission[]>>({});
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const { isLoading: isSaving, execute: savePermissions } = useAsyncAction();
-  const { isLoading: actionLoading, execute: executeAction } = useAsyncAction();
-
-  const loadRoles = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const data = await rolesService.list();
-      setRoles(data);
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to load roles';
-      setError(errorMsg);
-      toast.error(errorMsg);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadRoles();
-  }, [loadRoles]);
 
   const toggleResource = (resource: string) => {
     setExpandedResources((prev) =>
@@ -68,42 +49,35 @@ export function RolesPage() {
     );
   };
 
-  const handleCreateRole = useCallback(async (name: string, description: string) => {
-    await executeAction(
-      async () => {
-        const newRole = await rolesService.create({ name, description, permissions: [] });
-        setRoles((prev) => [...prev, newRole]);
-        setSelectedRole(newRole);
-      },
-      { successMessage: `${name} role has been created` }
-    );
-  }, [executeAction]);
+  const handleCreateRole = useCallback((name: string, description: string) => {
+    const newRole: Role = {
+      id: crypto.randomUUID(),
+      name,
+      description,
+      permissions: [],
+      userCount: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setRoles(prev => [...prev, newRole]);
+    setSelectedRole(newRole);
+    toast('success', 'Role created', `${name} role has been created`);
+  }, []);
 
-  const handleUpdateRole = useCallback(async (roleId: string, updates: Partial<Role>) => {
-    await executeAction(
-      async () => {
-        const updatedRole = await rolesService.update(roleId, updates);
-        setRoles((prev) => prev.map((r) => (r.id === roleId ? updatedRole : r)));
-        if (selectedRole?.id === roleId) {
-          setSelectedRole(updatedRole);
-        }
-      },
-      { successMessage: 'Role updated successfully' }
-    );
-  }, [executeAction, selectedRole]);
+  const handleUpdateRole = useCallback((roleId: string, updates: Partial<Role>) => {
+    setRoles(prev => prev.map(r => r.id === roleId ? { ...r, ...updates, updatedAt: new Date().toISOString() } : r));
+    if (selectedRole?.id === roleId) {
+      setSelectedRole(prev => prev ? { ...prev, ...updates } : null);
+    }
+  }, [selectedRole]);
 
-  const handleDeleteRole = useCallback(async (roleId: string) => {
-    await executeAction(
-      async () => {
-        await rolesService.delete(roleId);
-        setRoles((prev) => prev.filter((r) => r.id !== roleId));
-        if (selectedRole?.id === roleId) {
-          setSelectedRole(null);
-        }
-      },
-      { successMessage: 'Role deleted successfully' }
-    );
-  }, [executeAction, selectedRole]);
+  const handleDeleteRole = useCallback((roleId: string) => {
+    setRoles(prev => prev.filter(r => r.id !== roleId));
+    if (selectedRole?.id === roleId) {
+      setSelectedRole(null);
+    }
+    toast('success', 'Role deleted', 'The role has been removed');
+  }, [selectedRole]);
 
   const togglePermission = useCallback((resource: string, action: string) => {
     if (!selectedRole) return;
@@ -156,16 +130,8 @@ export function RolesPage() {
             <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
               <h3 className="font-semibold text-gray-900 dark:text-white">Roles</h3>
             </div>
-            {isLoading ? (
-              <div className="flex h-64 items-center justify-center">
-                <div className="text-center">
-                  <RefreshCw className="mx-auto h-6 w-6 animate-spin text-gray-400" />
-                  <p className="mt-2 text-sm text-gray-500">Loading roles...</p>
-                </div>
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-200 dark:divide-gray-800">
-                {roles.map((role) => (
+            <div className="divide-y divide-gray-100 dark:divide-gray-800">
+              {roles.map((role) => (
                 <button
                   key={role.id}
                   onClick={() => setSelectedRole(role)}
@@ -186,8 +152,7 @@ export function RolesPage() {
                   <ChevronRight className="h-4 w-4 text-gray-400" />
                 </button>
               ))}
-              </div>
-            )}
+            </div>
           </div>
         </div>
 

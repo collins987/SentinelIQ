@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { cn } from '../lib/utils';
 import { useJobsStore } from '../stores';
 import { DataTable } from '../components/ui/data-table';
@@ -10,7 +10,6 @@ import { toast } from '../components/ui/toast';
 import { useAsyncAction, copyToClipboard, simulateApiDelay } from '../hooks/useActions';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { BackgroundJob, JobStatus } from '../types';
-import { jobsService } from '../services/jobsService';
 import {
   ListTodo,
   Play,
@@ -23,7 +22,6 @@ import {
   CheckCircle,
   Clock,
   AlertTriangle,
-  AlertCircle,
   X,
   Terminal,
   Copy,
@@ -252,53 +250,33 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 export function JobsPage() {
-  const { filter, setFilter } = useJobsStore();
-  const [jobs, setJobs] = useState<BackgroundJob[]>([]);
-  const [selectedJob, setSelectedJob] = useState<BackgroundJob | null>(null);
+  const { jobs, filter, setFilter, selectedJob, selectJob, updateJob, addJob } = useJobsStore();
   const [statusFilter, setStatusFilter] = useState<JobStatus | 'all'>('all');
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const { isLoading: actionLoading, execute: executeAction } = useAsyncAction();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const loadJobs = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const data = await jobsService.list();
-      setJobs(data);
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to load jobs';
-      setError(errorMsg);
-      toast.error(errorMsg);
-    } finally {
-      setIsLoading(false);
-    }
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await simulateApiDelay(1000);
+    toast('success', 'Jobs refreshed', 'Job queue data has been updated');
+    setIsRefreshing(false);
   }, []);
 
-  useEffect(() => {
-    loadJobs();
-  }, [loadJobs]);
+  const handleRetryJob = useCallback((job: BackgroundJob) => {
+    updateJob(job.id, { 
+      status: 'pending', 
+      progress: 0, 
+      retryCount: job.retryCount + 1,
+      error: undefined 
+    });
+  }, [updateJob]);
 
-  const handleRetryJob = useCallback(async (job: BackgroundJob) => {
-    await executeAction(
-      async () => {
-        await jobsService.retry(job.id);
-        await loadJobs();
-      },
-      { successMessage: 'Job queued for retry' }
-    );
-  }, [executeAction, loadJobs]);
-
-  const handleCancelJob = useCallback(async (job: BackgroundJob) => {
-    await executeAction(
-      async () => {
-        await jobsService.cancel(job.id);
-        await loadJobs();
-        setSelectedJob(null);
-      },
-      { successMessage: 'Job cancelled' }
-    );
-  }, [executeAction, loadJobs]);
+  const handleCancelJob = useCallback((job: BackgroundJob) => {
+    updateJob(job.id, { 
+      status: 'cancelled', 
+      completedAt: new Date().toISOString() 
+    });
+    selectJob(null);
+  }, [updateJob, selectJob]);
 
   const filteredJobs = useMemo(() => {
     return jobs.filter((job) => {
