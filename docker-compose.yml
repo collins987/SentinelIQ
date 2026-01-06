@@ -1,103 +1,260 @@
 services:
-  # Backend API
-  sentineliq-api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: sentineliq-api
-    ports:
-      - "8000:8000"
-    environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/sentineliq
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - postgres
-      - redis
-    networks:
-      - sentineliq-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # Frontend UI
-  sentineliq-ui:
+  frontend:
     build:
       context: ./sentineliq-ui
       dockerfile: Dockerfile
-      target: development
-    container_name: sentineliq-ui
+      target: development  # Use development stage for docker compose
+    container_name: sentineliq_frontend
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_BASE_URL=http://localhost:8000
-      - VITE_ENABLE_MOCK_DATA=false
-    depends_on:
-      - sentineliq-api
+      VITE_API_BASE_URL: http://localhost:8000
+      VITE_WS_URL: ws://localhost:8000/ws
+      VITE_API_TIMEOUT: 30000
+      VITE_ENABLE_ANALYTICS: "true"
+      VITE_ENABLE_DEBUG_MODE: "false"
+      VITE_LOG_LEVEL: info
+    volumes:
+      # Mount source code for hot reload
+      - ./sentineliq-ui/src:/app/src
+      - ./sentineliq-ui/public:/app/public
+      - ./sentineliq-ui/index.html:/app/index.html
+      - ./sentineliq-ui/vite.config.ts:/app/vite.config.ts
+      - ./sentineliq-ui/tsconfig.json:/app/tsconfig.json
+      - ./sentineliq-ui/tsconfig.node.json:/app/tsconfig.node.json
+      - ./sentineliq-ui/tailwind.config.js:/app/tailwind.config.js
+      - ./sentineliq-ui/postcss.config.js:/app/postcss.config.js
+      # Prevent node_modules from being overwritten
+      - /app/node_modules
+    restart: unless-stopped
     networks:
-      - sentineliq-network
+      - backend
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5173/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
-  # PostgreSQL Database
+  # Blackbox exporter to probe frontend availability like other services
+  blackbox-exporter:
+    image: prom/blackbox-exporter:latest
+    container_name: sentineliq_blackbox
+    restart: unless-stopped
+    networks:
+      - backend
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sentineliq_api
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      SMTP_HOST: mailhog
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - backend
+
   postgres:
     image: postgres:15-alpine
-    container_name: sentineliq-postgres
+    container_name: sentineliq_postgres
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=sentineliq
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    networks:
-      - sentineliq-network
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+    networks:
+      - backend
 
-  # Redis
   redis:
     image: redis:7-alpine
-    container_name: sentineliq-redis
-    ports:
-      - "6379:6379"
-    networks:
-      - sentineliq-network
+    container_name: sentineliq_redis
+    command: redis-server --save 60 1 --loglevel warning
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - backend
+
+  mailhog:
+    image: mailhog/mailhog
+    container_name: sentineliq_mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # Event-Driven Risk Engine Infrastructure
+  # MinIO - S3-compatible object storage for immutable audit logs
+  minio:
+    image: minio/minio:latest
+    container_name: sentineliq_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+    networks:
+      - backend
 
-  # Prometheus - Monitoring
+  # Prometheus - Metrics collection for observability
   prometheus:
     image: prom/prometheus:latest
-    container_name: sentineliq-prometheus
-    restart: unless-stopped
+    container_name: sentineliq_prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
     ports:
       - "9090:9090"
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.enable-lifecycle'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
+    restart: unless-stopped
     networks:
-      - sentineliq-network
-    depends_on:
-      - sentineliq-api
-      - redis
+      - backend
 
-networks:
-  sentineliq-network:
-    driver: bridge
+  # Grafana - Dashboards and visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: sentineliq_grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: ""
+      GF_PLUGIN_ALLOW_UNSIGNED_PLUGINS: "true"
+      GF_PLUGINS_ALLOW_UI_UPDATES: "false"
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # Loki - Log aggregation (like Splunk, but free)
+  loki:
+    image: grafana/loki:latest
+    container_name: sentineliq_loki
+    ports:
+      - "3100:3100"
+    user: "0:0"  # Run as root on Ubuntu to ensure directory creation permissions
+    command: -config.file=/etc/loki/local-config.yml
+    volumes:
+      - ./monitoring/loki-config.yml:/etc/loki/local-config.yml:ro
+      - loki_data:/loki
+      - loki_compactor:/var/loki
+      - loki_wal:/wal
+    environment:
+      - LOKI_COMPACTOR_SHARED_STORE=filesystem
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # HashiCorp Vault - Secret management
+  vault:
+    image: hashicorp/vault:1.15.0
+    container_name: sentineliq_vault
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: devroot
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    command: server -dev
+    ports:
+      - "8200:8200"
+    volumes:
+      - vault_data:/vault/data
+    cap_add:
+      - IPC_LOCK
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # Redis Exporter - Metrics for Redis
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: sentineliq_redis_exporter
+    environment:
+      REDIS_ADDR: redis:6379
+    ports:
+      - "9121:9121"
+    depends_on:
+      - redis
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # Postgres Exporter - Metrics for PostgreSQL
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: sentineliq_postgres_exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable"
+    ports:
+      - "9187:9187"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    networks:
+      - backend
 
 volumes:
-  postgres_data:
+  pgdata:
+  minio_data:
   prometheus_data:
+  grafana_data:
+  loki_data:
+  loki_compactor:
+  loki_wal:
+  vault_data:
+
+networks:
+  backend:
+    driver: bridge
