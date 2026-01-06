@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  @apply box-border;
+}
+
+body {
+  @apply bg-white text-gray-900 dark:bg-slate-950 dark:text-gray-50;
+}
+
+/* Cytoscape.js customizations */
+.cytoscape-container {
+  width: 100%;
+  height: 100%;
+}
+
+/* Panic button animation */
+@keyframes pulse-red {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  50% {
+    opacity: 0.8;
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  }
+}
+
+.panic-button-pulse {
+  animation: pulse-red 2s infinite;
+}
+
+/* SLA Timer styles */
+.sla-critical {
+  @apply text-red-600 font-bold;
+}
+
+.sla-warning {
+  @apply text-yellow-600 font-semibold;
+}
+
+.sla-ok {
+  @apply text-green-600;
+}
+
+/* Dark mode for analytics dashboards */
+.dark-dashboard {
+  @apply bg-slate-950 text-gray-50;
+}
+
+/* Graph node highlights */
+.node-highlight {
+  @apply shadow-lg ring-2 ring-blue-500;
+}
+
+.node-suspicious {
+  @apply ring-2 ring-red-500;
+}
+
+.node-flagged {
+  @apply ring-2 ring-yellow-500;
+}
