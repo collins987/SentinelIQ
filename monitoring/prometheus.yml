@@ -56,3 +56,31 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
     scrape_interval: 15s
+
+  # ============================================================================
+  # Frontend - Static /metrics (served by Vite/Nginx)
+  # ============================================================================
+  - job_name: "sentineliq-frontend"
+    static_configs:
+      - targets: ["sentineliq_frontend:5173"]
+    metrics_path: "/metrics"
+    scrape_interval: 15s
+    scrape_timeout: 5s
+
+  # ============================================================================
+  # Frontend Availability - Blackbox HTTP probe
+  # ============================================================================
+  - job_name: "blackbox-frontend"
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - http://sentineliq_frontend:5173/
+    relabel_configs:
+      - source_labels: [__address__]
+        target: __param_target
+      - source_labels: [__param_target]
+        target: instance
+      - target: __address__
+        replacement: sentineliq_blackbox:9115

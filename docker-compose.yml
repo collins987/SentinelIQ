@@ -38,6 +38,14 @@ services:
       retries: 3
       start_period: 60s
 
+  # Blackbox exporter to probe frontend availability like other services
+  blackbox-exporter:
+    image: prom/blackbox-exporter:latest
+    container_name: sentineliq_blackbox
+    restart: unless-stopped
+    networks:
+      - backend
+
   api:
     build:
       context: .

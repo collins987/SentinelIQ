@@ -1,0 +1,7 @@
+# HELP app_info Build and version info for the SentinelIQ frontend
+# TYPE app_info gauge
+app_info{app="sentineliq-frontend",version="1.0.0",environment="development"} 1
+
+# HELP app_uptime_seconds Frontend container uptime (static in dev; dynamic in prod)
+# TYPE app_uptime_seconds gauge
+app_uptime_seconds 0
