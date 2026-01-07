@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from app.api import auth
 from app.routes import (
@@ -23,7 +24,24 @@ app = FastAPI(
     description="Fintech Risk & Security Intelligence Platform"
 )
 
-# Initialize Prometheus instrumentator BEFORE middleware setup
+# ========== CORS MIDDLEWARE (MUST BE FIRST) ==========
+# This is critical for browser requests from frontend (localhost:5173) to API (localhost:8000)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://sentineliq_frontend:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["X-Request-ID"],
+)
+
+# Initialize Prometheus instrumentator BEFORE other middleware setup
 Instrumentator().instrument(app).expose(app)
 
 # MILESTONE 1 & 2: PII Scrubbing Middleware
