@@ -11,7 +11,6 @@ import {
   AlertTriangle,
   Info,
   AlertCircle,
-  Filter,
 } from 'lucide-react';
 import type { Notification, NotificationType } from '../types';
 
@@ -28,22 +27,22 @@ export function NotificationsPage() {
   // Wrap store actions with toast feedback
   const handleMarkAsRead = useCallback((id: string) => {
     markAsRead(id);
-    toast.success('Notification marked as read');
+    toast('success', 'Done', 'Notification marked as read');
   }, [markAsRead]);
 
   const handleMarkAllAsRead = useCallback(() => {
     markAllAsRead();
-    toast.success('All notifications marked as read');
+    toast('success', 'Done', 'All notifications marked as read');
   }, [markAllAsRead]);
 
   const handleRemove = useCallback((id: string) => {
     removeNotification(id);
-    toast.info('Notification removed');
+    toast('info', 'Removed', 'Notification removed');
   }, [removeNotification]);
 
   const handleClearAll = useCallback(() => {
     clearAll();
-    toast.success('All notifications cleared');
+    toast('success', 'Done', 'All notifications cleared');
   }, [clearAll]);
 
   const groupedNotifications = useMemo(() => {

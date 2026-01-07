@@ -13,7 +13,7 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
   isLoading: false,
   error: null,
 
-  login: async (email: string, password: string) => {
+  login: async (email: string, _password: string) => {
     set({ isLoading: true, error: null })
     try {
       // Demo: create mock user based on email
@@ -27,12 +27,15 @@ export const useAuthStore = create<AuthStoreState>((set) => ({
         ? UserRole.DATA_SCIENTIST
         : email.includes('compliance')
         ? UserRole.COMPLIANCE
+        : email.includes('admin')
+        ? UserRole.ADMIN
         : UserRole.END_USER
 
       const user: User = {
         id: `user_${Date.now()}`,
         email,
         name: email.split('@')[0].toUpperCase(),
+        username: email.split('@')[0],
         role,
         permissions: ['read:transactions', 'write:transactions'],
         created_at: new Date().toISOString(),

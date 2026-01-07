@@ -7,8 +7,7 @@ import { UserRole } from '../types'
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate()
   const { login } = useAuthStore()
-  const [email, setEmail] = React.useState('analyst@sentineliq.com')
-  const [password, setPassword] = React.useState('password')
+  const [password] = React.useState('password')
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState('')
 
@@ -16,14 +15,16 @@ export const LoginPage: React.FC = () => {
     setLoading(true)
     setError('')
     try {
-      const roleEmail = {
+      const roleEmailMap: Record<UserRole, string> = {
         [UserRole.ANALYST]: 'analyst@sentineliq.com',
         [UserRole.END_USER]: 'user@sentineliq.com',
         [UserRole.SOC_RESPONDER]: 'soc@sentineliq.com',
         [UserRole.DATA_SCIENTIST]: 'scientist@sentineliq.com',
         [UserRole.DEVELOPER]: 'dev@sentineliq.com',
         [UserRole.COMPLIANCE]: 'compliance@sentineliq.com',
-      }[role]
+        [UserRole.ADMIN]: 'admin@sentineliq.com',
+      }
+      const roleEmail = roleEmailMap[role]
 
       await login(roleEmail, password)
       navigate(

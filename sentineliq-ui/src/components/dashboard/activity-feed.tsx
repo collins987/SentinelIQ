@@ -9,7 +9,6 @@ import {
   Database,
   Server,
   AlertTriangle,
-  CheckCircle,
   XCircle,
   Info,
   Zap,

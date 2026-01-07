@@ -3,18 +3,13 @@ import { cn } from '../lib/utils';
 import { MetricCard } from '../components/ui/metric-card';
 import { AnalyticsChart } from '../components/dashboard/analytics-chart';
 import { Button } from '../components/ui/button';
-import { toast } from '../components/ui/toast';
-import { exportToJson, exportToCsv } from '../hooks/useActions';
+import { exportToJson } from '../hooks/useActions';
 import {
-  BarChart3,
   TrendingUp,
   Users,
   Activity,
   Clock,
-  ArrowUpRight,
-  ArrowDownRight,
   Download,
-  Calendar,
 } from 'lucide-react';
 
 const generateTimeSeriesData = (days: number) =>

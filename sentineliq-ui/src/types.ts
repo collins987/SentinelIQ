@@ -2,6 +2,9 @@
 // Type Definitions for SentinelIQ
 // ============================================================================
 
+// Re-export all types from types/index.ts for consistent imports
+export * from './types/index';
+
 // User & Auth
 export enum UserRole {
   ANALYST = 'analyst',
@@ -13,14 +16,28 @@ export enum UserRole {
   ADMIN = 'admin',
 }
 
+// Extended User interface that matches UI usage
 export interface User {
   id: string;
   email: string;
   name: string;
-  username: string;
-  role: UserRole;
-  permissions: string[];
-  created_at: string;
+  username?: string;
+  role?: UserRole;
+  roles?: Array<{
+    id: string;
+    name: string;
+    description: string;
+    permissions: Array<{ id: string; resource: string; action: string; scope?: string }>;
+    userCount: number;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  permissions?: string[];
+  status?: 'active' | 'inactive' | 'suspended';
+  lastLogin?: string;
+  avatar?: string;
+  created_at?: string;
+  createdAt?: string;
 }
 
 export interface AuthState {

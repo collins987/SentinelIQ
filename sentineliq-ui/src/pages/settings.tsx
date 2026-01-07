@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { cn } from '../lib/utils';
 import { useUIStore } from '../stores';
 import { Button } from '../components/ui/button';
@@ -6,12 +6,10 @@ import { Modal, ConfirmModal } from '../components/ui/modal';
 import { toast } from '../components/ui/toast';
 import { useAsyncAction, simulateApiDelay, copyToClipboard } from '../hooks/useActions';
 import {
-  Settings,
   User,
   Bell,
   Shield,
   Palette,
-  Globe,
   Database,
   Key,
   Save,
@@ -19,10 +17,6 @@ import {
   Sun,
   Monitor,
   Copy,
-  Eye,
-  EyeOff,
-  Plus,
-  Trash2,
 } from 'lucide-react';
 
 const tabs = [

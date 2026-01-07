@@ -11,7 +11,7 @@ import {
   BarChart,
   Bar,
 } from 'recharts';
-import { BarChart3, TrendingUp, Calendar } from 'lucide-react';
+import { BarChart3 } from 'lucide-react';
 
 interface ChartDataPoint {
   name: string;

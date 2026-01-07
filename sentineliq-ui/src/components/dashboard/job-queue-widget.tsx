@@ -11,7 +11,6 @@ import {
   XCircle,
   Clock,
   RefreshCw,
-  MoreVertical,
   ChevronRight,
 } from 'lucide-react';
 import type { BackgroundJob, JobStatus } from '../../types';

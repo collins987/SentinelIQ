@@ -15,9 +15,6 @@ import {
   Edit,
   Trash2,
   Filter,
-  X,
-  Mail,
-  Shield,
 } from 'lucide-react';
 
 const mockUsers: User[] = [

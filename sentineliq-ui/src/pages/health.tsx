@@ -16,10 +16,8 @@ import {
   AlertTriangle,
   XCircle,
   RefreshCw,
-  Activity,
   Cpu,
   MemoryStick,
-  Clock,
 } from 'lucide-react';
 import type { ServiceHealth, SystemStatus } from '../types';
 
@@ -203,11 +201,12 @@ function ServiceCard({ service }: { service: ServiceHealth }) {
 }
 
 function ResourceGauge({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: number; color: string }) {
-  const colorClasses = {
+  const colorMap: Record<string, string> = {
     blue: 'text-blue-500 bg-blue-500',
     purple: 'text-purple-500 bg-purple-500',
     emerald: 'text-emerald-500 bg-emerald-500',
-  }[color];
+  };
+  const colorClasses = colorMap[color] || colorMap.blue;
 
   return (
     <div className="text-center">

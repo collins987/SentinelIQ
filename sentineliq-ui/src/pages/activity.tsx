@@ -14,7 +14,6 @@ import {
   AlertTriangle,
   XCircle,
   Search,
-  Calendar,
   ChevronDown,
 } from 'lucide-react';
 import type { SystemEvent, EventSeverity } from '../types';
@@ -27,7 +26,7 @@ const severityConfig: Record<EventSeverity, { color: string; bg: string; icon: R
 };
 
 export function ActivityPage() {
-  const { events, markAllRead } = useEventsStore();
+  const { events } = useEventsStore();
   const [severityFilter, setSeverityFilter] = useState<EventSeverity | 'all'>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');

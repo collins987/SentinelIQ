@@ -4,15 +4,13 @@ import { ActivityFeed } from '../components/dashboard/activity-feed';
 import { JobQueueWidget } from '../components/dashboard/job-queue-widget';
 import { SystemHealthWidget } from '../components/dashboard/system-health-widget';
 import { AnalyticsChart } from '../components/dashboard/analytics-chart';
-import { useDashboardStore, useEventsStore, useJobsStore, useSystemHealthStore } from '../stores';
+import { useDashboardStore, useEventsStore } from '../stores';
 import { useWebSocket } from '../lib/websocket';
 import { dashboardService, type DashboardMetrics } from '../services/dashboardService';
 import { toast } from '../components/ui/toast';
 import {
   Users,
   Activity,
-  Server,
-  AlertTriangle,
   Zap,
   Clock,
   RefreshCw,
@@ -20,10 +18,8 @@ import {
 } from 'lucide-react';
 
 export function DashboardPage() {
-  const { setMetrics, metrics } = useDashboardStore();
+  const { setMetrics } = useDashboardStore();
   const { setEvents } = useEventsStore();
-  const { setJobs } = useJobsStore();
-  const { setServices } = useSystemHealthStore();
   const [dashboardData, setDashboardData] = useState<DashboardMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +47,7 @@ export function DashboardPage() {
       });
       
       // Transform activity for events store
-      setEvents(data.recentActivity.map((activity, idx) => ({
+      setEvents(data.recentActivity.map((activity: { type: string; severity: 'info' | 'warning' | 'error' | 'critical'; description: string; timestamp: string }, idx: number) => ({
         id: `event-${idx}`,
         type: activity.type,
         severity: activity.severity,
@@ -63,7 +59,7 @@ export function DashboardPage() {
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to load dashboard data';
       setError(errorMsg);
-      toast.error(errorMsg);
+      toast('error', 'Error', errorMsg);
     } finally {
       setIsLoading(false);
     }
@@ -150,7 +146,7 @@ export function DashboardPage() {
           <div className="grid gap-6 lg:grid-cols-2">
             <AnalyticsChart
               title="Risk Trends (30 Days)"
-              data={dashboardData.riskTrends.map((d) => ({
+              data={dashboardData.riskTrends.map((d: { date: string; critical: number; high: number; medium: number; low: number }) => ({
                 name: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
                 value: d.high + d.critical,
                 secondary: d.medium + d.low,
@@ -161,7 +157,7 @@ export function DashboardPage() {
             />
             <AnalyticsChart
               title="Events by Category"
-              data={dashboardData.eventsByCategory.map((c) => ({
+              data={dashboardData.eventsByCategory.map((c: { category: string; count: number }) => ({
                 name: c.category,
                 value: c.count,
               }))}

@@ -12,7 +12,6 @@ import type { BackgroundJob, JobStatus } from '../types';
 import {
   ListTodo,
   Play,
-  Pause,
   RotateCcw,
   XCircle,
   Eye,
@@ -24,7 +23,6 @@ import {
   X,
   Terminal,
   Copy,
-  Loader2,
 } from 'lucide-react';
 
 const statusVariants: Record<JobStatus, 'default' | 'success' | 'warning' | 'error' | 'processing'> = {

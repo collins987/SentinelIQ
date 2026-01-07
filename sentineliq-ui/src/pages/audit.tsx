@@ -12,8 +12,6 @@ import {
   History,
   Filter,
   Download,
-  Search,
-  User,
   FileEdit,
   Trash2,
   Plus,
@@ -22,7 +20,6 @@ import {
   Calendar,
   X,
   Save,
-  MoreVertical,
 } from 'lucide-react';
 
 // Mock audit data
@@ -44,7 +41,6 @@ export function AuditPage() {
   // State management for audit entries (mutable for CRUD)
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>(mockAuditEntries);
   const [actionFilter, setActionFilter] = useState<string>('all');
-  const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({ 
     start: null, 
@@ -83,7 +79,6 @@ export function AuditPage() {
     await simulateApiDelay();
     // In a real system, this would be a soft delete (add 'deleted' flag)
     // For demo purposes, we'll remove from UI but log the action
-    const deletedEntry = auditEntries.find(e => e.id === entryId);
     setAuditEntries(prev => prev.filter(e => e.id !== entryId));
     
     // Create audit trail of the deletion itself
@@ -745,7 +740,7 @@ function AuditDetailModal({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {entry.changes.map((change, i) => (
+                  {entry.changes.map((change: AuditChange, i: number) => (
                     <tr key={i}>
                       <td className="px-4 py-2 font-medium text-gray-900 dark:text-white">{change.field}</td>
                       <td className="px-4 py-2 text-red-600 dark:text-red-400">
@@ -788,72 +783,3 @@ function AuditDetailModal({
   );
 }
 
-// Legacy panel component (keeping for backward compatibility)
-function AuditDetailPanel({ entry, onClose }: { entry: AuditEntry; onClose: () => void }) {
-  const config = actionConfig[entry.action] || actionConfig.view;
-  const Icon = config.icon;
-
-  return (
-    <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-3">
-          <div className={cn('rounded-full p-2', config.bg)}>
-            <Icon className={cn('h-5 w-5', config.color)} />
-          </div>
-          <div>
-            <h3 className="font-semibold text-gray-900 dark:text-white capitalize">
-              {entry.action} {entry.entityType.replace('_', ' ')}
-            </h3>
-            <p className="text-sm text-gray-500">ID: {entry.entityId}</p>
-          </div>
-        </div>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">×</button>
-      </div>
-
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
-        <div>
-          <p className="text-xs text-gray-500 uppercase tracking-wider">User</p>
-          <p className="mt-1 font-medium text-gray-900 dark:text-white">{entry.userName}</p>
-        </div>
-        <div>
-          <p className="text-xs text-gray-500 uppercase tracking-wider">Timestamp</p>
-          <p className="mt-1 font-medium text-gray-900 dark:text-white">{format(new Date(entry.timestamp), 'PPpp')}</p>
-        </div>
-        <div>
-          <p className="text-xs text-gray-500 uppercase tracking-wider">IP Address</p>
-          <p className="mt-1 font-mono text-gray-900 dark:text-white">{entry.ipAddress}</p>
-        </div>
-        <div>
-          <p className="text-xs text-gray-500 uppercase tracking-wider">User Agent</p>
-          <p className="mt-1 text-gray-900 dark:text-white">{entry.userAgent}</p>
-        </div>
-      </div>
-
-      {entry.changes.length > 0 && (
-        <div className="mt-6">
-          <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Changes</p>
-          <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 dark:bg-gray-800">
-                <tr>
-                  <th className="px-4 py-2 text-left text-gray-500">Field</th>
-                  <th className="px-4 py-2 text-left text-gray-500">Old Value</th>
-                  <th className="px-4 py-2 text-left text-gray-500">New Value</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {entry.changes.map((change, i) => (
-                  <tr key={i}>
-                    <td className="px-4 py-2 font-medium text-gray-900 dark:text-white">{change.field}</td>
-                    <td className="px-4 py-2 text-red-500 line-through">{String(change.oldValue) || '—'}</td>
-                    <td className="px-4 py-2 text-emerald-500">{String(change.newValue) || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
