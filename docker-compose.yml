@@ -42,6 +42,10 @@ services:
   blackbox-exporter:
     image: prom/blackbox-exporter:latest
     container_name: sentineliq_blackbox
+    command:
+      - '--config.file=/etc/blackbox_exporter/blackbox.yml'
+    volumes:
+      - ./monitoring/blackbox.yml:/etc/blackbox_exporter/blackbox.yml:ro
     restart: unless-stopped
     networks:
       - backend
