@@ -224,14 +224,34 @@ class AnalyticsService:
     
     @staticmethod
     def get_security_dashboard(db: Session) -> Dict[str, Any]:
-        """Get comprehensive security dashboard data"""
+        """Get comprehensive security dashboard data.
+        Returns data in the format expected by the frontend dashboardService.
+        """
+        # Get basic counts
+        active_users = AnalyticsService.get_active_users_count(db)
+        login_stats = AnalyticsService.get_login_stats(db, hours=24)
+        audit_summary = AnalyticsService.get_audit_log_summary(db)
+        
+        # Calculate metrics in frontend-expected format
+        total_events = audit_summary.get("total_events", 0)
+        critical_events = len(AnalyticsService.get_failed_login_attempts_by_user(db, limit=100))
+        
         return {
+            # Frontend expected fields (AnalyticsDashboardResponse)
+            "total_events": total_events,
+            "critical_events": critical_events,
+            "blocked_events": login_stats.get("failed", 0),
+            "detection_rate": login_stats.get("success_rate", 99.0),
+            "avg_response_time": 45,  # Default response time in ms
+            "active_users": active_users,
+            
+            # Additional data for extended dashboard
             "timestamp": datetime.utcnow().isoformat(),
             "users": AnalyticsService.get_users_by_role(db),
             "email_verification": AnalyticsService.get_email_verification_stats(db),
-            "login_stats": AnalyticsService.get_login_stats(db, hours=24),
+            "login_stats": login_stats,
             "failed_logins": AnalyticsService.get_failed_login_attempts_by_user(db),
             "session_stats": AnalyticsService.get_session_stats(db),
-            "audit_logs": AnalyticsService.get_audit_log_summary(db),
+            "audit_logs": audit_summary,
             "forbidden_access": AnalyticsService.get_forbidden_access_attempts(db)
         }

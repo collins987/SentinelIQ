@@ -68,7 +68,7 @@ export const useAuthStore = create<AuthStoreState>()(
         set({ isLoading: true, error: null })
         try {
           // Call the real backend login endpoint
-          const response = await api.post<LoginResponse>('/api/v1/auth/login', {
+          const response = await api.post<LoginResponse>('/auth/login', {
             email,
             password,
           });
@@ -101,7 +101,7 @@ export const useAuthStore = create<AuthStoreState>()(
         localStorage.removeItem('refresh_token');
 
         // Call logout endpoint (fire and forget)
-        api.post('/api/v1/auth/logout').catch(() => {
+        api.post('/auth/logout').catch(() => {
           // Ignore errors on logout
         });
 

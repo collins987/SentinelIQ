@@ -91,7 +91,16 @@ def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
-        "token_type": "bearer"
+        "token_type": "bearer",
+        "user": {
+            "id": str(user.id),
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "role": user.role,
+            "is_active": user.is_active,
+            "email_verified": user.email_verified,
+        }
     }
 
 @router.post("/token/refresh", response_model=TokenResponse)

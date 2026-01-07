@@ -11,6 +11,7 @@ import { RolesPage } from './pages/roles';
 import { AuditPage } from './pages/audit';
 import { SettingsPage } from './pages/settings';
 import { NotificationsPage } from './pages/notifications';
+import { LoginPage } from './pages/LoginPage';
 import { useUIStore } from './stores';
 import { ToastContainer } from './components/ui/toast';
 import { useRealTimeData } from './hooks/useRealTimeData';
@@ -44,6 +45,7 @@ export default function App() {
     <ThemeProvider>
       <BrowserRouter>
         <Routes>
+          <Route path="/login" element={<LoginPage />} />
           <Route element={<MainLayout />}>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/jobs" element={<JobsPage />} />

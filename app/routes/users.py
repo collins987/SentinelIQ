@@ -76,6 +76,12 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
     return db_user
 
 
+@router.get("/me", response_model=UserOut)
+def read_current_user(current_user: User = Depends(get_current_user)):
+    """Get the current authenticated user."""
+    return current_user
+
+
 @router.get("/", response_model=dict)
 def list_users(
     limit: int = 50,
@@ -207,8 +213,3 @@ def delete_user(
     db.delete(user)
     db.commit()
     return {"msg": "User deleted"}
-
-
-@router.get("/me", response_model=UserOut)
-def read_current_user(current_user: User = Depends(get_current_user)):
-    return current_user

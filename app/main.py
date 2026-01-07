@@ -15,7 +15,7 @@ from app.services.outbox import initialize_outbox_poller, shutdown_outbox_poller
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST, REGISTRY
 from prometheus_fastapi_instrumentator import Instrumentator
 from app.models import Base
-from app.core.seed import seed_default_org
+from app.core.seed import seed_default_org, seed_default_users
 from app.core.logging import logger
 import time
 
@@ -113,6 +113,7 @@ def startup():
     db = SessionLocal()
     try:
         seed_default_org(db)
+        seed_default_users(db)  # Create default admin and demo users
         logger.info("Application startup - database initialized")
     finally:
         db.close()

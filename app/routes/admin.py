@@ -28,16 +28,20 @@ def view_audit_logs(
 ):
     """View audit logs - admin only."""
     logs = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).limit(limit).offset(offset).all()
+    total_count = db.query(AuditLog).count()
+    
     return {
-        "count": len(logs),
+        "count": total_count,
         "logs": [
             {
-                "id": log.id,
-                "actor_id": log.actor_id,
+                "id": str(log.id),
+                "actor_id": str(log.actor_id) if log.actor_id else None,
                 "action": log.action,
                 "target": log.target,
-                "timestamp": log.timestamp,
-                "metadata": log.event_metadata
+                "timestamp": log.timestamp.isoformat() if log.timestamp else None,
+                "event_metadata": log.event_metadata,  # Frontend expects this field name
+                "ip_address": getattr(log, 'ip_address', None),
+                "user_agent": getattr(log, 'user_agent', None),
             }
             for log in logs
         ]

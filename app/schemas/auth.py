@@ -1,13 +1,24 @@
 from pydantic import BaseModel, EmailStr
+from typing import Optional
 
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
+class UserInfo(BaseModel):
+    id: str
+    email: str
+    first_name: str
+    last_name: str
+    role: str
+    is_active: bool
+    email_verified: bool
+
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
+    user: Optional[UserInfo] = None
 
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
