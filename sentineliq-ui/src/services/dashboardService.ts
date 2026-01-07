@@ -86,11 +86,11 @@ export const dashboardService = {
     try {
       // Fetch data from multiple endpoints in parallel
       const [analyticsResponse, timelineResponse] = await Promise.all([
-        api.get<AnalyticsDashboardResponse>('/api/v1/analytics/dashboard'),
-        api.get<RiskTimelineResponse>('/api/v1/analytics/risk-timeline').catch(() => ({ timeline: [] })),
+        api.get<AnalyticsDashboardResponse>('/analytics/dashboard'),
+        api.get<RiskTimelineResponse>('/analytics/advanced/risk-timeline').catch(() => ({ data: { timeline: [] } })),
       ]);
 
-      return transformDashboardData(analyticsResponse, timelineResponse.timeline || []);
+      return transformDashboardData(analyticsResponse, (timelineResponse as RiskTimelineResponse).timeline || []);
     } catch (error) {
       // Log error for debugging
       if (config.FEATURES.enableDebugLogging) {

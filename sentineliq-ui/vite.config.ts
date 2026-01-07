@@ -12,6 +12,11 @@ export default defineConfig({
   server: {
     port: 5173,
     host: '0.0.0.0', // Changed to bind to all interfaces for Docker
+    strictPort: true,
+    // Allow requests from Docker network (blackbox exporter, Prometheus, etc.)
+    cors: true,
+    // Allow all origins for development/Docker monitoring
+    allowedHosts: ['all'],
     watch: {
       usePolling: true, // Enable polling for Docker volumes
     },

@@ -3,7 +3,8 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from app.api import auth
 from app.routes import (
     users, admin, email_verification, password_reset, 
-    analytics, integrations, advanced_analytics, rules, search, graphql_api, ml_mobile, milestone_1_2
+    analytics, integrations, advanced_analytics, rules, search, graphql_api, ml_mobile, milestone_1_2,
+    jobs  # Background job management
 )
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.request_logging import RequestLoggingMiddleware, UserTrackingMiddleware
@@ -53,6 +54,7 @@ app.include_router(integrations.router)  # Rate limiting, webhooks, Slack, Pager
 app.include_router(graphql_api.router)  # GraphQL API
 app.include_router(ml_mobile.router)  # ML models and Mobile SDK
 app.include_router(milestone_1_2.router)  # MILESTONE 1 & 2: Shadow Mode, Link Analysis, Audit
+app.include_router(jobs.router)  # Background job management
 
 init_db()
 
@@ -103,7 +105,79 @@ def shutdown():
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok"}
+    """
+    Comprehensive health check endpoint.
+    Returns status of all services and overall system health.
+    """
+    from datetime import datetime
+    from sqlalchemy import text
+    import redis
+    
+    services = []
+    overall_status = "healthy"
+    
+    # Check database
+    db_status = "healthy"
+    db_latency = 0
+    try:
+        db = SessionLocal()
+        start = time.time()
+        db.execute(text("SELECT 1"))
+        db_latency = int((time.time() - start) * 1000)
+        db.close()
+    except Exception as e:
+        db_status = "critical"
+        overall_status = "critical"
+        logger.error(f"Database health check failed: {e}")
+    
+    services.append({
+        "name": "PostgreSQL",
+        "status": db_status,
+        "latency_ms": db_latency,
+        "uptime_percent": 100 if db_status == "healthy" else 0,
+        "last_check": datetime.utcnow().isoformat(),
+    })
+    
+    # Check Redis
+    redis_status = "healthy"
+    redis_latency = 0
+    try:
+        import os
+        redis_host = os.environ.get("REDIS_HOST", "redis")
+        redis_port = int(os.environ.get("REDIS_PORT", 6379))
+        r = redis.Redis(host=redis_host, port=redis_port, socket_timeout=2)
+        start = time.time()
+        r.ping()
+        redis_latency = int((time.time() - start) * 1000)
+    except Exception as e:
+        redis_status = "degraded"
+        if overall_status == "healthy":
+            overall_status = "degraded"
+        logger.warning(f"Redis health check failed: {e}")
+    
+    services.append({
+        "name": "Redis",
+        "status": redis_status,
+        "latency_ms": redis_latency,
+        "uptime_percent": 100 if redis_status == "healthy" else 0,
+        "last_check": datetime.utcnow().isoformat(),
+    })
+    
+    # API service (self)
+    services.append({
+        "name": "SentinelIQ API",
+        "status": "healthy",
+        "latency_ms": 0,
+        "uptime_percent": 100,
+        "last_check": datetime.utcnow().isoformat(),
+    })
+    
+    return {
+        "status": overall_status,
+        "timestamp": datetime.utcnow().isoformat(),
+        "services": services,
+        "overall_status": overall_status,
+    }
 
 @app.get("/metrics", include_in_schema=False)
 def get_metrics():

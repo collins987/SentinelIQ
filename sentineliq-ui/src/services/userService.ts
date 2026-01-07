@@ -82,7 +82,7 @@ export const userService = {
     page: number;
     pageSize: number;
   }> {
-    const response = await api.get<UserListResponse>('/api/v1/users', { params });
+    const response = await api.get<UserListResponse>('/users', { params });
     return {
       users: response.users.map(transformUser),
       total: response.total,
@@ -95,7 +95,7 @@ export const userService = {
    * Get a single user by ID
    */
   async get(id: string): Promise<User> {
-    const response = await api.get<UserFromAPI>(`/api/v1/users/${id}`);
+    const response = await api.get<UserFromAPI>(`/users/${id}`);
     return transformUser(response);
   },
 
@@ -103,7 +103,7 @@ export const userService = {
    * Get the current authenticated user
    */
   async getCurrentUser(): Promise<User> {
-    const response = await api.get<UserFromAPI>('/api/v1/users/me');
+    const response = await api.get<UserFromAPI>('/users/me');
     return transformUser(response);
   },
 
@@ -111,7 +111,7 @@ export const userService = {
    * Create a new user
    */
   async create(data: UserCreateRequest): Promise<User> {
-    const response = await api.post<UserFromAPI>('/api/v1/users', data);
+    const response = await api.post<UserFromAPI>('/users', data);
     return transformUser(response);
   },
 
@@ -119,7 +119,7 @@ export const userService = {
    * Update a user
    */
   async update(id: string, data: UserUpdateRequest): Promise<User> {
-    const response = await api.patch<UserFromAPI>(`/api/v1/users/${id}`, data);
+    const response = await api.patch<UserFromAPI>(`/users/${id}`, data);
     return transformUser(response);
   },
 
@@ -127,28 +127,28 @@ export const userService = {
    * Delete a user
    */
   async delete(id: string): Promise<void> {
-    await api.delete(`/api/v1/users/${id}`);
+    await api.delete(`/users/${id}`);
   },
 
   /**
    * Disable a user (admin only)
    */
   async disable(id: string): Promise<void> {
-    await api.post(`/api/v1/admin/users/${id}/disable`);
+    await api.post(`/admin/users/${id}/disable`);
   },
 
   /**
    * Enable a user (admin only)
    */
   async enable(id: string): Promise<void> {
-    await api.post(`/api/v1/admin/users/${id}/enable`);
+    await api.post(`/admin/users/${id}/enable`);
   },
 
   /**
    * Change user role (admin only)
    */
   async changeRole(id: string, newRole: string): Promise<void> {
-    await api.post(`/api/v1/admin/users/${id}/change-role`, null, {
+    await api.post(`/admin/users/${id}/change-role`, null, {
       params: { new_role: newRole },
     });
   },

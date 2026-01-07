@@ -76,7 +76,7 @@ export const auditService = {
     entries: AuditEntry[];
     count: number;
   }> {
-    const response = await api.get<AuditListResponse>('/api/v1/admin/audit-logs', { params });
+    const response = await api.get<AuditListResponse>('/admin/audit-logs', { params });
     return {
       entries: response.logs.map(transformAuditEntry),
       count: response.count,
@@ -87,7 +87,7 @@ export const auditService = {
    * Get a single audit entry by ID
    */
   async get(id: string): Promise<AuditEntry> {
-    const response = await api.get<AuditLogFromAPI>(`/api/v1/admin/audit-logs/${id}`);
+    const response = await api.get<AuditLogFromAPI>(`/admin/audit-logs/${id}`);
     return transformAuditEntry(response);
   },
 
@@ -99,7 +99,7 @@ export const auditService = {
     end_date?: string;
     format?: 'csv' | 'json';
   }): Promise<Blob> {
-    const response = await api.get<Blob>('/api/v1/admin/audit-logs/export', {
+    const response = await api.get<Blob>('/admin/audit-logs/export', {
       params,
       responseType: 'blob',
     } as any);

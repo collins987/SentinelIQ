@@ -78,7 +78,7 @@ export const healthService = {
     overallStatus: SystemStatus;
     lastCheck: string;
   }> {
-    const response = await api.get<HealthStatusResponse>('/api/v1/health');
+    const response = await api.get<HealthStatusResponse>('/health');
     return {
       services: response.services.map(transformService),
       overallStatus: transformStatus(response.overall_status || response.status),
@@ -91,7 +91,7 @@ export const healthService = {
    */
   async getServiceHealth(serviceName: string): Promise<ServiceHealth> {
     const response = await api.get<HealthStatusResponse['services'][0]>(
-      `/api/v1/health/services/${serviceName}`
+      `/health/services/${serviceName}`
     );
     return transformService(response);
   },
@@ -103,7 +103,7 @@ export const healthService = {
   async getLatencyHistory(serviceName?: string): Promise<LatencyDataPoint[]> {
     try {
       const response = await api.get<LatencyHistoryResponse>(
-        `/api/v1/health/latency${serviceName ? `?service=${serviceName}` : ''}`
+        `/health/latency${serviceName ? `?service=${serviceName}` : ''}`
       );
       return response.data.map((point, index) => ({
         name: new Date(point.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
@@ -129,7 +129,7 @@ export const healthService = {
   }> {
     // POST to trigger fresh health checks
     try {
-      const response = await api.post<HealthStatusResponse>('/api/v1/health/refresh');
+      const response = await api.post<HealthStatusResponse>('/health/refresh');
       return {
         services: response.services.map(transformService),
         overallStatus: transformStatus(response.overall_status || response.status),
