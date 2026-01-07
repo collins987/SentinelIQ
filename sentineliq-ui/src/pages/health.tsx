@@ -1,10 +1,10 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { cn } from '../lib/utils';
 import { useSystemHealthStore } from '../stores';
+import { healthService } from '../services/healthService';
 import { AnalyticsChart } from '../components/dashboard/analytics-chart';
 import { Button } from '../components/ui/button';
 import { toast } from '../components/ui/toast';
-import { simulateApiDelay } from '../hooks/useActions';
 import { formatDistanceToNow } from 'date-fns';
 import {
   Server,
@@ -18,6 +18,7 @@ import {
   RefreshCw,
   Cpu,
   MemoryStick,
+  AlertCircle,
 } from 'lucide-react';
 import type { ServiceHealth, SystemStatus } from '../types';
 
@@ -36,37 +37,80 @@ const serviceIcons: Record<string, React.ElementType> = {
   network: Wifi,
 };
 
-// Mock latency data
-const generateLatencyData = () =>
-  Array.from({ length: 24 }, (_, i) => ({
-    name: `${i}:00`,
-    value: Math.floor(Math.random() * 100) + 20,
-  }));
-
 export function HealthPage() {
   const { services, overallStatus, lastCheck, setServices } = useSystemHealthStore();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [latencyData, setLatencyData] = useState<Array<{ name: string; value: number }>>([]);
+
+  // Load health status on mount
+  const loadHealthStatus = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const status = await healthService.getStatus();
+      // setServices automatically updates overallStatus and lastCheck
+      setServices(status.services);
+      
+      // Load latency history for chart
+      const latency = await healthService.getLatencyHistory();
+      setLatencyData(latency);
+    } catch (err) {
+      setError('Failed to load health status. Backend may be unavailable.');
+      console.error('Error loading health status:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setServices]);
+
+  useEffect(() => {
+    loadHealthStatus();
+  }, [loadHealthStatus]);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await simulateApiDelay(1500);
-    
-    // Simulate refreshing health data
-    setServices([
-      { name: 'API', status: 'healthy', latency: 30 + Math.floor(Math.random() * 40), uptime: 99.9 + Math.random() * 0.1, lastCheck: new Date().toISOString() },
-      { name: 'Database', status: 'healthy', latency: 5 + Math.floor(Math.random() * 15), uptime: 99.95 + Math.random() * 0.05, lastCheck: new Date().toISOString() },
-      { name: 'Redis', status: 'healthy', latency: 1 + Math.floor(Math.random() * 5), uptime: 100, lastCheck: new Date().toISOString() },
-      { name: 'Storage', status: Math.random() > 0.8 ? 'degraded' : 'healthy', latency: 100 + Math.floor(Math.random() * 200), uptime: 98 + Math.random() * 2, lastCheck: new Date().toISOString() },
-    ]);
-    
-    toast('success', 'Health check complete', 'All services have been checked');
-    setIsRefreshing(false);
+    try {
+      const status = await healthService.refresh();
+      // setServices automatically updates overallStatus and lastCheck
+      setServices(status.services);
+      
+      toast('success', 'Health check complete', 'All services have been checked');
+    } catch (err) {
+      toast('error', 'Health check failed', 'Could not refresh service status');
+    } finally {
+      setIsRefreshing(false);
+    }
   }, [setServices]);
 
   const overallConfig = statusConfig[overallStatus];
   const OverallIcon = overallConfig.icon;
 
-  const latencyData = useMemo(() => generateLatencyData(), []);
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <RefreshCw className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 space-y-4">
+        <AlertCircle className="h-12 w-12 text-red-400" />
+        <p className="text-gray-600 dark:text-gray-400">{error}</p>
+        <button
+          onClick={loadHealthStatus}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+        >
+          <RefreshCw className="h-4 w-4" />
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

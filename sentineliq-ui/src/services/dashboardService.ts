@@ -1,7 +1,8 @@
 // ============================================================================
-// Dashboard Service - API calls for dashboard data
+// Dashboard Service - Production-ready API service for dashboard data
 // ============================================================================
 
+import { api } from '../lib/api';
 import config from '../lib/config';
 
 export interface DashboardMetrics {
@@ -24,61 +25,112 @@ export interface DashboardMetrics {
   }>;
 }
 
-// Mock data for development
-const mockDashboardData: DashboardMetrics = {
-  totalUsers: 2847,
-  activeUsers: 423,
-  totalEvents: 45892,
-  highRiskEvents: 156,
-  successRate: 99.2,
-  avgResponseTime: 124,
-  criticalAlerts: 3,
-  systemHealth: 'healthy',
-  riskTrends: [
-    { date: '2025-12-01', critical: 2, high: 12, medium: 28, low: 45 },
-    { date: '2025-12-02', critical: 1, high: 8, medium: 32, low: 52 },
-    { date: '2025-12-03', critical: 3, high: 15, medium: 25, low: 38 },
-    { date: '2025-12-04', critical: 0, high: 10, medium: 30, low: 48 },
-    { date: '2025-12-05', critical: 2, high: 18, medium: 22, low: 42 },
-    { date: '2025-12-06', critical: 1, high: 9, medium: 35, low: 55 },
-    { date: '2025-12-07', critical: 2, high: 14, medium: 28, low: 41 },
-  ],
-  eventsByCategory: [
-    { category: 'Authentication', count: 1250 },
-    { category: 'Data Access', count: 890 },
-    { category: 'System', count: 456 },
-    { category: 'Security', count: 234 },
-  ],
-  recentActivity: [
-    { id: '1', type: 'user.login', description: 'User admin@example.com logged in', timestamp: new Date().toISOString(), severity: 'info' },
-    { id: '2', type: 'job.completed', description: 'Report generation completed', timestamp: new Date(Date.now() - 60000).toISOString(), severity: 'info' },
-    { id: '3', type: 'api.error', description: 'Rate limit exceeded for IP 192.168.1.100', timestamp: new Date(Date.now() - 120000).toISOString(), severity: 'error' },
-    { id: '4', type: 'system.alert', description: 'High memory usage on worker-01', timestamp: new Date(Date.now() - 180000).toISOString(), severity: 'warning' },
-  ],
-};
+// API response types from backend
+interface AnalyticsDashboardResponse {
+  total_events: number;
+  critical_events: number;
+  blocked_events: number;
+  detection_rate: number;
+  avg_response_time: number;
+  active_users: number;
+}
+
+interface RiskTimelineResponse {
+  timeline: Array<{
+    date: string;
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+    total: number;
+  }>;
+}
+
+/**
+ * Transform backend analytics response to frontend format
+ */
+function transformDashboardData(
+  analyticsData: AnalyticsDashboardResponse,
+  riskTimeline: RiskTimelineResponse['timeline']
+): DashboardMetrics {
+  const criticalCount = analyticsData.critical_events;
+  const systemHealth: 'healthy' | 'degraded' | 'critical' = 
+    criticalCount > 10 ? 'critical' : criticalCount > 5 ? 'degraded' : 'healthy';
+
+  return {
+    totalUsers: analyticsData.active_users || 0,
+    activeUsers: analyticsData.active_users || 0,
+    totalEvents: analyticsData.total_events || 0,
+    highRiskEvents: analyticsData.critical_events || 0,
+    successRate: analyticsData.detection_rate || 99.0,
+    avgResponseTime: analyticsData.avg_response_time || 0,
+    criticalAlerts: criticalCount,
+    systemHealth,
+    riskTrends: riskTimeline.map(t => ({
+      date: t.date,
+      critical: t.critical,
+      high: t.high,
+      medium: t.medium,
+      low: t.low,
+    })),
+    eventsByCategory: [], // Will be populated from separate endpoint if needed
+    recentActivity: [], // Will be populated from events endpoint
+  };
+}
 
 export const dashboardService = {
   /**
    * Fetch dashboard metrics from the API
    */
   async getMetrics(): Promise<DashboardMetrics> {
-    // Use mock data in development or when configured
-    if (config.FEATURES.useMockData) {
-      await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
-      return mockDashboardData;
+    try {
+      // Fetch data from multiple endpoints in parallel
+      const [analyticsResponse, timelineResponse] = await Promise.all([
+        api.get<AnalyticsDashboardResponse>('/api/v1/analytics/dashboard'),
+        api.get<RiskTimelineResponse>('/api/v1/analytics/risk-timeline').catch(() => ({ timeline: [] })),
+      ]);
+
+      return transformDashboardData(analyticsResponse, timelineResponse.timeline || []);
+    } catch (error) {
+      // Log error for debugging
+      if (config.FEATURES.enableDebugLogging) {
+        console.error('[DashboardService] Failed to fetch metrics:', error);
+      }
+      
+      // Re-throw to let caller handle the error
+      throw error;
     }
+  },
 
-    const response = await fetch(`${config.API.baseUrl}/dashboard/metrics`, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+  /**
+   * Fetch recent activity/events
+   */
+  async getRecentActivity(limit: number = 10): Promise<DashboardMetrics['recentActivity']> {
+    try {
+      const response = await api.get<{ events: Array<{
+        id: string;
+        event_type: string;
+        user_email: string;
+        risk_level: string;
+        timestamp: string;
+      }> }>('/api/v1/events', { params: { limit } });
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch dashboard metrics: ${response.statusText}`);
+      return response.events.map(event => ({
+        id: event.id,
+        type: event.event_type,
+        description: `${event.event_type} from ${event.user_email}`,
+        timestamp: event.timestamp,
+        severity: event.risk_level === 'critical' ? 'critical'
+          : event.risk_level === 'high' ? 'error'
+          : event.risk_level === 'medium' ? 'warning'
+          : 'info',
+      }));
+    } catch (error) {
+      if (config.FEATURES.enableDebugLogging) {
+        console.error('[DashboardService] Failed to fetch activity:', error);
+      }
+      return [];
     }
-
-    return response.json();
   },
 
   /**

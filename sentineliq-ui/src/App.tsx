@@ -35,8 +35,10 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  // Enable real-time data updates with mock data
-  useRealTimeData({ enablePolling: true, pollingInterval: 5000, enableMockData: true });
+  // Enable real-time data updates
+  // Mock data is DISABLED by default for production mode
+  // Set VITE_USE_MOCK_DATA=true to enable for testing
+  useRealTimeData({ enablePolling: true, pollingInterval: 5000 });
 
   return (
     <ThemeProvider>

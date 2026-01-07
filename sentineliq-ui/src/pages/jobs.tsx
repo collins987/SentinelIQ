@@ -1,12 +1,13 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { cn } from '../lib/utils';
 import { useJobsStore } from '../stores';
+import { jobService } from '../services/jobService';
 import { DataTable } from '../components/ui/data-table';
 import { StatusBadge } from '../components/ui/status-badge';
 import { Button } from '../components/ui/button';
 import { formatDistanceToNow, format } from 'date-fns';
 import { toast } from '../components/ui/toast';
-import { useAsyncAction, copyToClipboard, simulateApiDelay } from '../hooks/useActions';
+import { copyToClipboard } from '../hooks/useActions';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { BackgroundJob, JobStatus } from '../types';
 import {
@@ -23,6 +24,7 @@ import {
   X,
   Terminal,
   Copy,
+  AlertCircle,
 } from 'lucide-react';
 
 const statusVariants: Record<JobStatus, 'default' | 'success' | 'warning' | 'error' | 'processing'> = {
@@ -50,37 +52,71 @@ function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType
 
 function JobDetailPanel({ job, onClose, onRetry, onCancel }: { job: BackgroundJob; onClose: () => void; onRetry: (job: BackgroundJob) => void; onCancel: (job: BackgroundJob) => void }) {
   const [showLogs, setShowLogs] = useState(false);
-  const { isLoading: retryLoading, execute: executeRetry } = useAsyncAction();
-  const { isLoading: cancelLoading, execute: executeCancel } = useAsyncAction();
+  const [logs, setLogs] = useState<string[]>([]);
+  const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+  const [retryLoading, setRetryLoading] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
 
-  // Mock logs for demonstration
-  const mockLogs = [
-    `[${format(new Date(job.createdAt), 'HH:mm:ss')}] Job ${job.id} created`,
-    `[${format(new Date(job.createdAt), 'HH:mm:ss')}] Queue: ${job.queue}`,
-    job.startedAt ? `[${format(new Date(job.startedAt), 'HH:mm:ss')}] Job started processing` : null,
-    job.status === 'running' ? `[${format(new Date(), 'HH:mm:ss')}] Progress: ${job.progress}%` : null,
-    job.error ? `[${format(new Date(), 'HH:mm:ss')}] ERROR: ${job.error}` : null,
-    job.completedAt ? `[${format(new Date(job.completedAt), 'HH:mm:ss')}] Job completed successfully` : null,
-  ].filter(Boolean);
+  // Load logs when panel opens and showLogs is true
+  useEffect(() => {
+    if (showLogs && logs.length === 0) {
+      setIsLoadingLogs(true);
+      jobService.getLogs(job.id)
+        .then(fetchedLogs => {
+          if (fetchedLogs.length > 0) {
+            setLogs(fetchedLogs);
+          } else {
+            // Generate basic logs from job metadata if API returns none
+            const basicLogs = [
+              `[${format(new Date(job.createdAt), 'HH:mm:ss')}] Job ${job.id} created`,
+              `[${format(new Date(job.createdAt), 'HH:mm:ss')}] Queue: ${job.queue}`,
+            ];
+            if (job.startedAt) {
+              basicLogs.push(`[${format(new Date(job.startedAt), 'HH:mm:ss')}] Job started processing`);
+            }
+            if (job.status === 'running') {
+              basicLogs.push(`[${format(new Date(), 'HH:mm:ss')}] Progress: ${job.progress}%`);
+            }
+            if (job.error) {
+              basicLogs.push(`[${format(new Date(), 'HH:mm:ss')}] ERROR: ${job.error}`);
+            }
+            if (job.completedAt) {
+              basicLogs.push(`[${format(new Date(job.completedAt), 'HH:mm:ss')}] Job completed successfully`);
+            }
+            setLogs(basicLogs);
+          }
+        })
+        .catch(() => {
+          setLogs(['Failed to load logs']);
+        })
+        .finally(() => setIsLoadingLogs(false));
+    }
+  }, [showLogs, job, logs.length]);
 
   const handleRetry = async () => {
-    await executeRetry(
-      async () => {
-        await simulateApiDelay();
-        onRetry(job);
-      },
-      { successMessage: 'Job queued for retry' }
-    );
+    setRetryLoading(true);
+    try {
+      await jobService.retry(job.id);
+      onRetry(job);
+      toast('success', 'Job queued for retry', `${job.name} will be retried`);
+    } catch (err) {
+      toast('error', 'Failed to retry job', err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setRetryLoading(false);
+    }
   };
 
   const handleCancel = async () => {
-    await executeCancel(
-      async () => {
-        await simulateApiDelay();
-        onCancel(job);
-      },
-      { successMessage: 'Job cancelled' }
-    );
+    setCancelLoading(true);
+    try {
+      await jobService.cancel(job.id);
+      onCancel(job);
+      toast('success', 'Job cancelled', `${job.name} has been cancelled`);
+    } catch (err) {
+      toast('error', 'Failed to cancel job', err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setCancelLoading(false);
+    }
   };
 
   const handleCopyMetadata = () => {
@@ -137,12 +173,12 @@ function JobDetailPanel({ job, onClose, onRetry, onCancel }: { job: BackgroundJo
 
               {/* Details */}
               <div className="space-y-3">
-                <DetailRow label="Type" value={job.type} />
+                <DetailRow label="Type" value={job.name.split(' ')[0]} />
                 <DetailRow label="Queue" value={job.queue} />
                 <DetailRow label="Created" value={format(new Date(job.createdAt), 'PPpp')} />
                 {job.startedAt && <DetailRow label="Started" value={format(new Date(job.startedAt), 'PPpp')} />}
                 {job.completedAt && <DetailRow label="Completed" value={format(new Date(job.completedAt), 'PPpp')} />}
-                <DetailRow label="Retries" value={`${job.retryCount} / ${job.maxRetries}`} />
+                <DetailRow label="Retries" value={`${job.attempts || 0} / ${job.maxAttempts || 3}`} />
               </div>
 
               {/* Error */}
@@ -181,16 +217,22 @@ function JobDetailPanel({ job, onClose, onRetry, onCancel }: { job: BackgroundJo
                   <div className="mb-2 flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Execution Logs</span>
                     <button 
-                      onClick={() => copyToClipboard(mockLogs.join('\n'), 'Logs')}
+                      onClick={() => copyToClipboard(logs.join('\n'), 'Logs')}
                       className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800"
                       title="Copy logs"
                     >
                       <Copy className="h-4 w-4" />
                     </button>
                   </div>
-                  <pre className="max-h-48 overflow-y-auto rounded-lg bg-gray-900 p-4 text-xs text-gray-300 font-mono">
-                    {mockLogs.join('\n')}
-                  </pre>
+                  {isLoadingLogs ? (
+                    <div className="flex items-center justify-center py-8">
+                      <RefreshCw className="h-5 w-5 animate-spin text-gray-400" />
+                    </div>
+                  ) : (
+                    <pre className="max-h-48 overflow-y-auto rounded-lg bg-gray-900 p-4 text-xs text-gray-300 font-mono">
+                      {logs.join('\n')}
+                    </pre>
+                  )}
                 </div>
               )}
             </div>
@@ -247,22 +289,49 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 export function JobsPage() {
-  const { jobs, filter, selectedJob, selectJob, updateJob } = useJobsStore();
+  const { jobs, filter, selectedJob, selectJob, updateJob, setJobs } = useJobsStore();
   const [statusFilter, setStatusFilter] = useState<JobStatus | 'all'>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load jobs from API on mount
+  const loadJobs = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await jobService.list();
+      setJobs(result.jobs);
+    } catch (err) {
+      setError('Failed to load jobs. Please try again.');
+      console.error('Error loading jobs:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setJobs]);
+
+  useEffect(() => {
+    loadJobs();
+  }, [loadJobs]);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await simulateApiDelay(1000);
-    toast('success', 'Jobs refreshed', 'Job queue data has been updated');
-    setIsRefreshing(false);
-  }, []);
+    try {
+      const result = await jobService.list();
+      setJobs(result.jobs);
+      toast('success', 'Jobs refreshed', 'Job queue data has been updated');
+    } catch (err) {
+      toast('error', 'Refresh failed', 'Could not refresh jobs');
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [setJobs]);
 
   const handleRetryJob = useCallback((job: BackgroundJob) => {
     updateJob(job.id, { 
       status: 'pending', 
       progress: 0, 
-      retryCount: job.retryCount + 1,
+      attempts: (job.attempts || 0) + 1,
       error: undefined 
     });
   }, [updateJob]);
@@ -362,6 +431,32 @@ export function JobsPage() {
     completed: jobs.filter((j) => j.status === 'completed').length,
     failed: jobs.filter((j) => j.status === 'failed').length,
   }), [jobs]);
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <RefreshCw className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 space-y-4">
+        <AlertCircle className="h-12 w-12 text-red-400" />
+        <p className="text-gray-600 dark:text-gray-400">{error}</p>
+        <button
+          onClick={loadJobs}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+        >
+          <RefreshCw className="h-4 w-4" />
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

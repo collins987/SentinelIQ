@@ -117,11 +117,16 @@ export const useEventsStore = create<EventsState>()(
 interface NotificationsState {
   notifications: Notification[];
   unreadCount: number;
+  isLoading: boolean;
+  error: string | null;
+  setNotifications: (notifications: Notification[], unreadCount: number) => void;
   addNotification: (notification: Notification) => void;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
   removeNotification: (id: string) => void;
   clearAll: () => void;
+  setLoading: (loading: boolean) => void;
+  setError: (error: string | null) => void;
 }
 
 export const useNotificationsStore = create<NotificationsState>()(
@@ -129,6 +134,10 @@ export const useNotificationsStore = create<NotificationsState>()(
     (set) => ({
       notifications: [],
       unreadCount: 0,
+      isLoading: false,
+      error: null,
+      setNotifications: (notifications, unreadCount) =>
+        set({ notifications, unreadCount, isLoading: false, error: null }),
       addNotification: (notification) =>
         set((state) => ({
           notifications: [notification, ...state.notifications],
@@ -151,6 +160,8 @@ export const useNotificationsStore = create<NotificationsState>()(
           notifications: state.notifications.filter((n) => n.id !== id),
         })),
       clearAll: () => set({ notifications: [], unreadCount: 0 }),
+      setLoading: (isLoading) => set({ isLoading }),
+      setError: (error) => set({ error }),
     }),
     { name: 'notifications-store' }
   )

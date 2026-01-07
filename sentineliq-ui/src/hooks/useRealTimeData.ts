@@ -1,14 +1,25 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useJobsStore, useEventsStore, useSystemHealthStore, useNotificationsStore } from '../stores';
+import config from '../lib/config';
 
 interface UseRealTimeDataOptions {
   enablePolling?: boolean;
   pollingInterval?: number;
-  enableMockData?: boolean;
 }
 
+/**
+ * Hook for real-time data updates
+ * 
+ * In PRODUCTION MODE (default): No mock data is generated
+ * Data comes only from real backend APIs via WebSocket or polling
+ * 
+ * For testing: Set VITE_USE_MOCK_DATA=true to enable mock data
+ */
 export function useRealTimeData(options: UseRealTimeDataOptions = {}) {
-  const { enablePolling = true, pollingInterval = 5000, enableMockData = true } = options;
+  const { enablePolling = true, pollingInterval = 5000 } = options;
+  
+  // Check if mock data is explicitly enabled
+  const enableMockData = config.FEATURES.useMockData;
   
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   

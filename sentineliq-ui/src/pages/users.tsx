@@ -1,11 +1,12 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { cn } from '../lib/utils';
 import { DataTable } from '../components/ui/data-table';
 import { StatusBadge } from '../components/ui/status-badge';
 import { Modal, ConfirmModal } from '../components/ui/modal';
 import { Button } from '../components/ui/button';
 import { toast } from '../components/ui/toast';
-import { useAsyncAction, simulateApiDelay } from '../hooks/useActions';
+import { useAsyncAction } from '../hooks/useActions';
+import { userService } from '../services/userService';
 import { formatDistanceToNow } from 'date-fns';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { User } from '../types';
@@ -15,14 +16,9 @@ import {
   Edit,
   Trash2,
   Filter,
+  RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
-
-const mockUsers: User[] = [
-  { id: '1', email: 'admin@sentineliq.io', name: 'Admin User', status: 'active', roles: [{ id: 'r1', name: 'Admin', description: '', permissions: [], userCount: 1, createdAt: '', updatedAt: '' }], lastLogin: new Date().toISOString(), createdAt: new Date(Date.now() - 86400000 * 30).toISOString() },
-  { id: '2', email: 'john@example.com', name: 'John Doe', status: 'active', roles: [{ id: 'r2', name: 'User', description: '', permissions: [], userCount: 5, createdAt: '', updatedAt: '' }], lastLogin: new Date(Date.now() - 3600000).toISOString(), createdAt: new Date(Date.now() - 86400000 * 15).toISOString() },
-  { id: '3', email: 'jane@example.com', name: 'Jane Smith', status: 'inactive', roles: [{ id: 'r2', name: 'User', description: '', permissions: [], userCount: 5, createdAt: '', updatedAt: '' }], createdAt: new Date(Date.now() - 86400000 * 7).toISOString() },
-  { id: '4', email: 'bob@example.com', name: 'Bob Wilson', status: 'suspended', roles: [], createdAt: new Date(Date.now() - 86400000 * 2).toISOString() },
-];
 
 const statusVariants: Record<string, 'success' | 'warning' | 'error' | 'default'> = {
   active: 'success',
@@ -45,27 +41,82 @@ function StatCard({ label, value, icon: Icon, color = 'text-gray-600' }: { label
 }
 
 export function UsersPage() {
-  const [users, setUsers] = useState<User[]>(mockUsers);
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
 
-  const handleAddUser = useCallback((user: Omit<User, 'id' | 'createdAt'>) => {
-    const newUser: User = {
-      ...user,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-    };
-    setUsers(prev => [newUser, ...prev]);
+  // Fetch users from API
+  const loadUsers = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await userService.list();
+      setUsers(response.users);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to load users';
+      setError(errorMsg);
+      toast('error', 'Error', errorMsg);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  const handleUpdateUser = useCallback((userId: string, updates: Partial<User>) => {
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updates } : u));
+  // Load users on mount
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
+
+  const handleAddUser = useCallback(async (userData: { email: string; firstName: string; lastName: string; password: string; role?: string }) => {
+    try {
+      const newUser = await userService.create({
+        email: userData.email,
+        first_name: userData.firstName,
+        last_name: userData.lastName,
+        password: userData.password,
+        role: userData.role,
+      });
+      setUsers(prev => [newUser, ...prev]);
+      toast('success', 'User created', 'New user account has been created');
+      setShowAddModal(false);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to create user';
+      toast('error', 'Error', errorMsg);
+      throw err;
+    }
   }, []);
 
-  const handleDeleteUser = useCallback((userId: string) => {
-    setUsers(prev => prev.filter(u => u.id !== userId));
+  const handleUpdateUser = useCallback(async (userId: string, updates: { firstName?: string; lastName?: string; role?: string; isActive?: boolean }) => {
+    try {
+      const updatedUser = await userService.update(userId, {
+        first_name: updates.firstName,
+        last_name: updates.lastName,
+        role: updates.role,
+        is_active: updates.isActive,
+      });
+      setUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
+      toast('success', 'User updated', 'User details have been updated');
+      setEditingUser(null);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to update user';
+      toast('error', 'Error', errorMsg);
+      throw err;
+    }
+  }, []);
+
+  const handleDeleteUser = useCallback(async (userId: string) => {
+    try {
+      await userService.delete(userId);
+      setUsers(prev => prev.filter(u => u.id !== userId));
+      toast('success', 'User deleted', 'User has been removed');
+      setDeletingUser(null);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to delete user';
+      toast('error', 'Error', errorMsg);
+    }
   }, []);
 
   const filteredUsers = useMemo(() => {
@@ -164,11 +215,33 @@ export function UsersPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Users</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Manage user accounts and access</p>
         </div>
-        <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-          <UserPlus className="h-4 w-4" />
-          Add User
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={loadUsers} 
+            disabled={isLoading}
+            className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300"
+            title="Refresh"
+          >
+            <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
+          </button>
+          <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+            <UserPlus className="h-4 w-4" />
+            Add User
+          </button>
+        </div>
       </div>
+
+      {error && (
+        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-900 dark:border-red-900 dark:bg-red-900/20 dark:text-red-400">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium">{error}</p>
+          </div>
+          <button onClick={loadUsers} className="text-sm font-medium hover:underline">
+            Retry
+          </button>
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-4">
         <StatCard label="Total Users" value={stats.total} icon={Users} />
@@ -195,7 +268,16 @@ export function UsersPage() {
         ))}
       </div>
 
-      <DataTable columns={columns} data={filteredUsers} searchKey="name" searchPlaceholder="Search users..." />
+      {isLoading && users.length === 0 ? (
+        <div className="flex h-64 items-center justify-center">
+          <div className="text-center">
+            <RefreshCw className="mx-auto h-8 w-8 animate-spin text-gray-400" />
+            <p className="mt-2 text-sm text-gray-500">Loading users...</p>
+          </div>
+        </div>
+      ) : (
+        <DataTable columns={columns} data={filteredUsers} searchKey="name" searchPlaceholder="Search users..." />
+      )}
 
       {showAddModal && (
         <AddUserModal 
@@ -221,8 +303,6 @@ export function UsersPage() {
           onClose={() => setDeletingUser(null)}
           onConfirm={() => {
             handleDeleteUser(deletingUser.id);
-            toast('success', 'User deleted', `${deletingUser.name} has been removed`);
-            setDeletingUser(null);
           }}
           title="Delete User"
           message={`Are you sure you want to delete ${deletingUser.name}? This action cannot be undone.`}
@@ -234,16 +314,23 @@ export function UsersPage() {
   );
 }
 
-function AddUserModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (user: Omit<User, 'id' | 'createdAt'>) => void }) {
-  const [name, setName] = useState('');
+interface AddUserModalProps {
+  onClose: () => void;
+  onSubmit: (user: { email: string; firstName: string; lastName: string; password: string; role?: string }) => Promise<void>;
+}
+
+function AddUserModal({ onClose, onSubmit }: AddUserModalProps) {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState('User');
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState('viewer');
   const { isLoading, execute } = useAsyncAction();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!name.trim() || !email.trim()) {
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !password.trim()) {
       toast('error', 'Validation error', 'Please fill in all required fields');
       return;
     }
@@ -253,17 +340,22 @@ function AddUserModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (u
       return;
     }
 
+    if (password.length < 8) {
+      toast('error', 'Validation error', 'Password must be at least 8 characters');
+      return;
+    }
+
     await execute(
       async () => {
-        await simulateApiDelay();
-        onSubmit({
-          name: name.trim(),
+        await onSubmit({
           email: email.trim(),
-          status: 'active',
-          roles: [{ id: crypto.randomUUID(), name: role, description: '', permissions: [], userCount: 1, createdAt: '', updatedAt: '' }],
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          password: password,
+          role: role,
         });
       },
-      { successMessage: 'User added successfully' }
+      { successMessage: 'User created successfully' }
     );
     onClose();
   };
@@ -271,18 +363,33 @@ function AddUserModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (u
   return (
     <Modal isOpen={true} onClose={onClose} title="Add New User" description="Create a new user account">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Name <span className="text-red-500">*</span>
-          </label>
-          <input 
-            type="text" 
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800" 
-            placeholder="Enter name" 
-            required
-          />
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              First Name <span className="text-red-500">*</span>
+            </label>
+            <input 
+              type="text" 
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800" 
+              placeholder="First name" 
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Last Name <span className="text-red-500">*</span>
+            </label>
+            <input 
+              type="text" 
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800" 
+              placeholder="Last name" 
+              required
+            />
+          </div>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -298,23 +405,37 @@ function AddUserModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (u
           />
         </div>
         <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Password <span className="text-red-500">*</span>
+          </label>
+          <input 
+            type="password" 
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800" 
+            placeholder="Enter password (min. 8 characters)" 
+            required
+            minLength={8}
+          />
+        </div>
+        <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
           <select 
             value={role}
             onChange={(e) => setRole(e.target.value)}
             className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800"
           >
-            <option>User</option>
-            <option>Admin</option>
-            <option>Viewer</option>
+            <option value="viewer">Viewer</option>
+            <option value="analyst">Analyst</option>
+            <option value="admin">Admin</option>
           </select>
         </div>
         <div className="flex gap-3 pt-4">
           <Button type="button" variant="outline" onClick={onClose} disabled={isLoading} className="flex-1">
             Cancel
           </Button>
-          <Button type="submit" isLoading={isLoading} loadingText="Adding..." className="flex-1">
-            Add User
+          <Button type="submit" isLoading={isLoading} loadingText="Creating..." className="flex-1">
+            Create User
           </Button>
         </div>
       </form>
@@ -322,24 +443,37 @@ function AddUserModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (u
   );
 }
 
-function EditUserModal({ user, onClose, onSubmit }: { user: User; onClose: () => void; onSubmit: (updates: Partial<User>) => void }) {
-  const [name, setName] = useState(user.name);
-  const [email, setEmail] = useState(user.email);
-  const [status, setStatus] = useState(user.status);
+interface EditUserModalProps {
+  user: User;
+  onClose: () => void;
+  onSubmit: (userId: string, updates: { firstName?: string; lastName?: string; role?: string; isActive?: boolean }) => Promise<void>;
+}
+
+function EditUserModal({ user, onClose, onSubmit }: EditUserModalProps) {
+  // Split name into first/last (best effort)
+  const nameParts = user.name.split(' ');
+  const [firstName, setFirstName] = useState(nameParts[0] || '');
+  const [lastName, setLastName] = useState(nameParts.slice(1).join(' ') || '');
+  const [status, setStatus] = useState(user.status || 'active');
+  const [role, setRole] = useState(user.roles?.[0]?.name || 'viewer');
   const { isLoading, execute } = useAsyncAction();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!name.trim() || !email.trim()) {
+    if (!firstName.trim() || !lastName.trim()) {
       toast('error', 'Validation error', 'Please fill in all required fields');
       return;
     }
 
     await execute(
       async () => {
-        await simulateApiDelay();
-        onSubmit({ name: name.trim(), email: email.trim(), status });
+        await onSubmit(user.id, {
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          role: role,
+          isActive: status === 'active',
+        });
       },
       { successMessage: 'User updated successfully' }
     );
@@ -348,25 +482,49 @@ function EditUserModal({ user, onClose, onSubmit }: { user: User; onClose: () =>
   return (
     <Modal isOpen={true} onClose={onClose} title="Edit User" description={`Editing ${user.name}`}>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
-          <input 
-            type="text" 
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800" 
-            required
-          />
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First Name</label>
+            <input 
+              type="text" 
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800" 
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Name</label>
+            <input 
+              type="text" 
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800" 
+              required
+            />
+          </div>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
           <input 
             type="email" 
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800" 
-            required
+            value={user.email}
+            disabled
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-gray-50 text-gray-500 dark:border-gray-700 dark:bg-gray-800" 
           />
+          <p className="mt-1 text-xs text-gray-400">Email cannot be changed</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
+          <select 
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800"
+          >
+            <option value="viewer">Viewer</option>
+            <option value="analyst">Analyst</option>
+            <option value="admin">Admin</option>
+          </select>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
@@ -377,7 +535,6 @@ function EditUserModal({ user, onClose, onSubmit }: { user: User; onClose: () =>
           >
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
-            <option value="suspended">Suspended</option>
           </select>
         </div>
         <div className="flex gap-3 pt-4">

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import { useUIStore, useNotificationsStore } from '../../stores';
 import {
@@ -11,14 +12,77 @@ import {
   AlertTriangle,
   Info,
   AlertCircle,
+  ExternalLink,
+  User,
+  FileText,
+  Activity,
+  Shield,
 } from 'lucide-react';
 import type { Notification, NotificationType } from '../../types';
 import { formatDistanceToNow } from 'date-fns';
 
 export function Header() {
+  const navigate = useNavigate();
   const { sidebarCollapsed, toggleCommandPalette, theme, setTheme } = useUIStore();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotificationsStore();
   const [notificationsPanelOpen, setNotificationsPanelOpen] = useState(false);
+
+  // Handle notification click - navigate to related entity or action URL
+  const handleNotificationClick = useCallback((notification: Notification) => {
+    // Mark as read
+    markAsRead(notification.id);
+
+    // Close the panel
+    setNotificationsPanelOpen(false);
+
+    // Navigate based on notification type/metadata
+    if (notification.actionUrl) {
+      // If it's an external URL, open in new tab
+      if (notification.actionUrl.startsWith('http')) {
+        window.open(notification.actionUrl, '_blank');
+      } else {
+        // Internal route
+        navigate(notification.actionUrl);
+      }
+      return;
+    }
+
+    // Derive navigation from metadata
+    const entityType = notification.metadata?.entityType as string | undefined;
+    const entityId = notification.metadata?.entityId as string | undefined;
+
+    if (entityType && entityId) {
+      switch (entityType) {
+        case 'user':
+          navigate(`/users?highlight=${entityId}`);
+          break;
+        case 'audit':
+        case 'audit_log':
+          navigate(`/audit?highlight=${entityId}`);
+          break;
+        case 'job':
+          navigate(`/jobs?highlight=${entityId}`);
+          break;
+        case 'event':
+          navigate(`/activity?highlight=${entityId}`);
+          break;
+        case 'alert':
+          navigate(`/analytics?alert=${entityId}`);
+          break;
+        default:
+          // Navigate to notifications page for full details
+          navigate('/notifications');
+      }
+    } else {
+      // Default: navigate to notifications page
+      navigate('/notifications');
+    }
+  }, [markAsRead, navigate]);
+
+  const handleViewAllNotifications = useCallback(() => {
+    setNotificationsPanelOpen(false);
+    navigate('/notifications');
+  }, [navigate]);
 
   return (
     <header
@@ -82,10 +146,24 @@ export function Header() {
                     </div>
                   ) : (
                     notifications.slice(0, 10).map((notification) => (
-                      <NotificationItem key={notification.id} notification={notification} onRead={() => markAsRead(notification.id)} />
+                      <NotificationItem 
+                        key={notification.id} 
+                        notification={notification} 
+                        onClick={() => handleNotificationClick(notification)}
+                      />
                     ))
                   )}
                 </div>
+                {notifications.length > 0 && (
+                  <div className="border-t border-gray-200 px-4 py-3 dark:border-gray-800">
+                    <button
+                      onClick={handleViewAllNotifications}
+                      className="w-full text-center text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                    >
+                      View all notifications
+                    </button>
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -95,7 +173,12 @@ export function Header() {
   );
 }
 
-function NotificationItem({ notification, onRead }: { notification: Notification; onRead: () => void }) {
+interface NotificationItemProps {
+  notification: Notification;
+  onClick: () => void;
+}
+
+function NotificationItem({ notification, onClick }: NotificationItemProps) {
   const iconMap: Record<NotificationType, React.ElementType> = {
     success: Check,
     warning: AlertTriangle,
@@ -110,23 +193,49 @@ function NotificationItem({ notification, onRead }: { notification: Notification
   };
   const Icon = iconMap[notification.type];
 
+  // Determine entity icon based on metadata
+  const entityType = notification.metadata?.entityType as string | undefined;
+  const EntityIcon = entityType === 'user' ? User
+    : entityType === 'audit' || entityType === 'audit_log' ? FileText
+    : entityType === 'job' ? Activity
+    : entityType === 'alert' ? Shield
+    : null;
+
+  const hasAction = notification.actionUrl || entityType;
+
   return (
     <div
       className={cn(
         'flex cursor-pointer gap-3 px-4 py-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50',
         !notification.read && 'bg-blue-50/50 dark:bg-blue-900/10'
       )}
-      onClick={onRead}
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === 'Enter' && onClick()}
     >
       <div className={cn('flex-shrink-0 rounded-full p-1.5', colorMap[notification.type])}>
         <Icon className="h-4 w-4" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-gray-900 dark:text-white">{notification.title}</p>
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-sm font-medium text-gray-900 dark:text-white">{notification.title}</p>
+          {hasAction && (
+            <ExternalLink className="h-3 w-3 flex-shrink-0 text-gray-400" />
+          )}
+        </div>
         <p className="mt-0.5 truncate text-sm text-gray-500 dark:text-gray-400">{notification.message}</p>
-        <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-          {formatDistanceToNow(new Date(notification.timestamp), { addSuffix: true })}
-        </p>
+        <div className="mt-1 flex items-center gap-2">
+          <span className="text-xs text-gray-400 dark:text-gray-500">
+            {formatDistanceToNow(new Date(notification.timestamp), { addSuffix: true })}
+          </span>
+          {EntityIcon && (
+            <span className="flex items-center gap-1 text-xs text-gray-400">
+              <EntityIcon className="h-3 w-3" />
+              <span className="capitalize">{entityType?.replace('_', ' ')}</span>
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );

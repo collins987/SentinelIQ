@@ -1,10 +1,11 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { cn } from '../lib/utils';
 import { DataTable } from '../components/ui/data-table';
 import { Button } from '../components/ui/button';
 import { Modal, ConfirmModal } from '../components/ui/modal';
 import { toast } from '../components/ui/toast';
-import { exportToCsv, useAsyncAction, simulateApiDelay } from '../hooks/useActions';
+import { exportToCsv, useAsyncAction } from '../hooks/useActions';
+import { auditService } from '../services/auditService';
 import { formatDistanceToNow, format, subDays } from 'date-fns';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { AuditEntry, AuditChange } from '../types';
@@ -20,26 +21,30 @@ import {
   Calendar,
   X,
   Save,
+  RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
-
-// Mock audit data
-const mockAuditEntries: AuditEntry[] = [
-  { id: '1', action: 'create', entityType: 'user', entityId: 'u123', userId: 'admin1', userName: 'Admin User', timestamp: new Date().toISOString(), changes: [{ field: 'email', oldValue: null, newValue: 'new@example.com' }], ipAddress: '192.168.1.1', userAgent: 'Chrome/120.0' },
-  { id: '2', action: 'update', entityType: 'settings', entityId: 's1', userId: 'admin1', userName: 'Admin User', timestamp: new Date(Date.now() - 3600000).toISOString(), changes: [{ field: 'theme', oldValue: 'light', newValue: 'dark' }], ipAddress: '192.168.1.1', userAgent: 'Chrome/120.0' },
-  { id: '3', action: 'delete', entityType: 'api_key', entityId: 'ak456', userId: 'user2', userName: 'John Doe', timestamp: new Date(Date.now() - 7200000).toISOString(), changes: [], ipAddress: '10.0.0.5', userAgent: 'Firefox/121.0' },
-  { id: '4', action: 'view', entityType: 'report', entityId: 'r789', userId: 'user3', userName: 'Jane Smith', timestamp: new Date(Date.now() - 86400000).toISOString(), changes: [], ipAddress: '172.16.0.10', userAgent: 'Safari/17.0' },
-];
 
 const actionConfig: Record<string, { icon: React.ElementType; color: string; bg: string }> = {
   create: { icon: Plus, color: 'text-emerald-500', bg: 'bg-emerald-100 dark:bg-emerald-900/30' },
+  created: { icon: Plus, color: 'text-emerald-500', bg: 'bg-emerald-100 dark:bg-emerald-900/30' },
+  registered: { icon: Plus, color: 'text-emerald-500', bg: 'bg-emerald-100 dark:bg-emerald-900/30' },
   update: { icon: FileEdit, color: 'text-blue-500', bg: 'bg-blue-100 dark:bg-blue-900/30' },
+  updated: { icon: FileEdit, color: 'text-blue-500', bg: 'bg-blue-100 dark:bg-blue-900/30' },
+  enabled: { icon: FileEdit, color: 'text-emerald-500', bg: 'bg-emerald-100 dark:bg-emerald-900/30' },
+  disabled: { icon: FileEdit, color: 'text-amber-500', bg: 'bg-amber-100 dark:bg-amber-900/30' },
   delete: { icon: Trash2, color: 'text-red-500', bg: 'bg-red-100 dark:bg-red-900/30' },
+  deleted: { icon: Trash2, color: 'text-red-500', bg: 'bg-red-100 dark:bg-red-900/30' },
   view: { icon: Eye, color: 'text-gray-500', bg: 'bg-gray-100 dark:bg-gray-800' },
+  login: { icon: Eye, color: 'text-blue-500', bg: 'bg-blue-100 dark:bg-blue-900/30' },
+  logout: { icon: Eye, color: 'text-gray-500', bg: 'bg-gray-100 dark:bg-gray-800' },
 };
 
 export function AuditPage() {
-  // State management for audit entries (mutable for CRUD)
-  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>(mockAuditEntries);
+  // State management for audit entries
+  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [actionFilter, setActionFilter] = useState<string>('all');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({ 
@@ -53,54 +58,44 @@ export function AuditPage() {
   const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
   const [viewingEntry, setViewingEntry] = useState<AuditEntry | null>(null);
 
-  // Create new audit entry
-  const handleCreateAuditEntry = async (entryData: Omit<AuditEntry, 'id' | 'timestamp'>) => {
-    await simulateApiDelay();
-    const newEntry: AuditEntry = {
-      ...entryData,
-      id: crypto.randomUUID(),
-      timestamp: new Date().toISOString(),
-    };
-    setAuditEntries(prev => [newEntry, ...prev]);
-    toast('success', 'Audit entry created', 'New audit record has been added to the log');
-    setShowCreateModal(false);
-  };
+  // Fetch audit logs from API
+  const loadAuditLogs = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const params: Record<string, unknown> = { limit: 100 };
+      if (actionFilter !== 'all') {
+        params.action = actionFilter;
+      }
+      if (dateRange.start) {
+        params.start_date = dateRange.start.toISOString();
+      }
+      if (dateRange.end) {
+        params.end_date = dateRange.end.toISOString();
+      }
+      
+      const response = await auditService.list(params);
+      setAuditEntries(response.entries);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to load audit logs';
+      setError(errorMsg);
+      toast('error', 'Error', errorMsg);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [actionFilter, dateRange]);
 
-  // Update existing audit entry
-  const handleUpdateAuditEntry = async (entryData: AuditEntry) => {
-    await simulateApiDelay();
-    setAuditEntries(prev => prev.map(e => e.id === entryData.id ? entryData : e));
-    toast('success', 'Audit entry updated', 'Changes have been saved successfully');
-    setEditingEntry(null);
-  };
+  // Load audit logs on mount and when filters change
+  useEffect(() => {
+    loadAuditLogs();
+  }, [loadAuditLogs]);
 
-  // Soft delete audit entry (mark as deleted but preserve for compliance)
+  // Note: Audit logs are typically immutable for compliance reasons
+  // The following functions are kept for potential admin-only soft delete scenarios
   const handleDeleteAuditEntry = async (entryId: string) => {
-    await simulateApiDelay();
-    // In a real system, this would be a soft delete (add 'deleted' flag)
-    // For demo purposes, we'll remove from UI but log the action
-    setAuditEntries(prev => prev.filter(e => e.id !== entryId));
-    
-    // Create audit trail of the deletion itself
-    const deletionAudit: AuditEntry = {
-      id: crypto.randomUUID(),
-      action: 'delete',
-      entityType: 'audit_entry',
-      entityId: entryId,
-      userId: 'current_user',
-      userName: 'Admin User',
-      timestamp: new Date().toISOString(),
-      changes: [{
-        field: 'deleted',
-        oldValue: false,
-        newValue: true,
-      }],
-      ipAddress: '127.0.0.1',
-      userAgent: navigator.userAgent,
-    };
-    setAuditEntries(prev => [deletionAudit, ...prev]);
-    
-    toast('success', 'Audit entry deleted', 'Record has been removed (action logged)');
+    // In production, audit logs should NOT be deletable
+    // This is kept for demonstration but should be disabled in real systems
+    toast('warning', 'Not allowed', 'Audit logs cannot be deleted for compliance reasons');
     setDeletingEntryId(null);
   };
 
@@ -131,7 +126,7 @@ export function AuditPage() {
         { key: 'ipAddress', label: 'IP Address' },
       ]
     );
-  }, []);
+  }, [filteredEntries]);
 
   const handleDateRangeSelect = (days: number) => {
     const end = new Date();
@@ -252,6 +247,14 @@ export function AuditPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button 
+            onClick={loadAuditLogs} 
+            disabled={isLoading}
+            className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300"
+            title="Refresh"
+          >
+            <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
+          </button>
           <Button
             variant="outline"
             onClick={handleExport}
@@ -259,14 +262,21 @@ export function AuditPage() {
           >
             Export Logs
           </Button>
-          <Button
-            onClick={() => setShowCreateModal(true)}
-            leftIcon={<Plus className="h-4 w-4" />}
-          >
-            Create Entry
-          </Button>
         </div>
       </div>
+
+      {/* Error state */}
+      {error && (
+        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-900 dark:border-red-900 dark:bg-red-900/20 dark:text-red-400">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium">{error}</p>
+          </div>
+          <button onClick={loadAuditLogs} className="text-sm font-medium hover:underline">
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">

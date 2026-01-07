@@ -23,10 +23,18 @@ export const ENV = {
 // Feature Flags
 // ============================================
 
-/** Feature flag configuration - can be overridden via environment variables */
+/** 
+ * Feature flag configuration
+ * PRODUCTION MODE: Mock data is DISABLED by default
+ * Set VITE_USE_MOCK_DATA=true explicitly to enable mock data for testing
+ */
 export const FEATURES = {
-  /** Enable mock data generation (disable in production with real API) */
-  useMockData: import.meta.env.VITE_USE_MOCK_DATA !== 'false',
+  /** 
+   * Enable mock data generation
+   * DISABLED by default for production-like behavior
+   * Set VITE_USE_MOCK_DATA=true to enable for development/testing
+   */
+  useMockData: import.meta.env.VITE_USE_MOCK_DATA === 'true',
   /** Enable real-time WebSocket connections */
   enableWebSocket: import.meta.env.VITE_ENABLE_WEBSOCKET !== 'false',
   /** Enable debug logging */
