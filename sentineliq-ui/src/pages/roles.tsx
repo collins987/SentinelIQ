@@ -37,7 +37,6 @@ export function RolesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [deletingRole, setDeletingRole] = useState<Role | null>(null);
-  const [rolePermissions, setRolePermissions] = useState<Record<string, Permission[]>>({});
   const { isLoading: isSaving, execute: savePermissions } = useAsyncAction();
 
   const toggleResource = (resource: string) => {

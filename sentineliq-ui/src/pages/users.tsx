@@ -99,26 +99,30 @@ export function UsersPage() {
     {
       accessorKey: 'status',
       header: 'Status',
-      cell: ({ row }) => (
-        <StatusBadge variant={statusVariants[row.original.status]}>{row.original.status}</StatusBadge>
-      ),
+      cell: ({ row }) => {
+        const status = row.original.status ?? 'active';
+        return <StatusBadge variant={statusVariants[status]}>{status}</StatusBadge>;
+      },
     },
     {
       accessorKey: 'roles',
       header: 'Roles',
-      cell: ({ row }) => (
-        <div className="flex flex-wrap gap-1">
-          {row.original.roles.length === 0 ? (
-            <span className="text-gray-400">No roles</span>
-          ) : (
-            row.original.roles.map((role) => (
-              <span key={role.id} className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-                {role.name}
-              </span>
-            ))
-          )}
-        </div>
-      ),
+      cell: ({ row }) => {
+        const roles = row.original.roles ?? [];
+        return (
+          <div className="flex flex-wrap gap-1">
+            {roles.length === 0 ? (
+              <span className="text-gray-400">No roles</span>
+            ) : (
+              roles.map((role) => (
+                <span key={role.id} className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                  {role.name}
+                </span>
+              ))
+            )}
+          </div>
+        );
+      },
     },
     {
       accessorKey: 'lastLogin',

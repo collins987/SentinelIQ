@@ -128,27 +128,12 @@ export function debugLog(...args: unknown[]): void {
   }
 }
 
-// ============================================
-// Type Declarations for Vite Environment
-// ============================================
-
-// Extend ImportMetaEnv for TypeScript support
-declare global {
-  interface ImportMetaEnv {
-    readonly VITE_API_URL?: string;
-    readonly VITE_WS_URL?: string;
-    readonly VITE_USE_MOCK_DATA?: string;
-    readonly VITE_ENABLE_WEBSOCKET?: string;
-    readonly VITE_ENABLE_ANALYTICS?: string;
-    readonly VITE_DEBUG?: string;
-    readonly VITE_API_TIMEOUT?: string;
-    readonly VITE_POLLING_INTERVAL?: string;
-  }
-}
-
-export default {
+// Configuration object export
+export const config = {
   ENV,
   FEATURES,
   API,
   UI,
 };
+
+export default config;

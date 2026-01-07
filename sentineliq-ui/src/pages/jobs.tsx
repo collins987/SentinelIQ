@@ -247,7 +247,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 export function JobsPage() {
-  const { jobs, filter, setFilter, selectedJob, selectJob, updateJob, addJob } = useJobsStore();
+  const { jobs, filter, selectedJob, selectJob, updateJob } = useJobsStore();
   const [statusFilter, setStatusFilter] = useState<JobStatus | 'all'>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
 

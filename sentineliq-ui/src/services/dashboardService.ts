@@ -2,7 +2,7 @@
 // Dashboard Service - API calls for dashboard data
 // ============================================================================
 
-import { config } from '../lib/config';
+import config from '../lib/config';
 
 export interface DashboardMetrics {
   totalUsers: number;
