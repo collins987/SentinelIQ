@@ -79,8 +79,8 @@ scrape_configs:
           - http://sentineliq_frontend:5173/
     relabel_configs:
       - source_labels: [__address__]
-        target: __param_target
+        target_label: __param_target
       - source_labels: [__param_target]
-        target: instance
-      - target: __address__
+        target_label: instance
+      - target_label: __address__
         replacement: sentineliq_blackbox:9115
