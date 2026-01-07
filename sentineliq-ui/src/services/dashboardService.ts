@@ -63,12 +63,12 @@ export const dashboardService = {
    */
   async getMetrics(): Promise<DashboardMetrics> {
     // Use mock data in development or when configured
-    if (config.features.useMockData) {
+    if (config.FEATURES.useMockData) {
       await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
       return mockDashboardData;
     }
 
-    const response = await fetch(`${config.api.baseUrl}/dashboard/metrics`, {
+    const response = await fetch(`${config.API.baseUrl}/dashboard/metrics`, {
       headers: {
         'Content-Type': 'application/json',
       },
