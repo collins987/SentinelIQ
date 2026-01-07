@@ -3,7 +3,6 @@ import { cn } from '../lib/utils';
 import { useJobsStore } from '../stores';
 import { DataTable } from '../components/ui/data-table';
 import { StatusBadge } from '../components/ui/status-badge';
-import { Modal, ConfirmModal } from '../components/ui/modal';
 import { Button } from '../components/ui/button';
 import { formatDistanceToNow, format } from 'date-fns';
 import { toast } from '../components/ui/toast';
