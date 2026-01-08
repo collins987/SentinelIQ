@@ -1,11 +1,9 @@
-import { useState } from 'react';
-import { useApiQuery, useApiMutation } from '@/hooks/use-api-query';
-import { PageLoadingState } from '@/components/loading-state';
-import { PageErrorState } from '@/components/error-state';
-import { ErrorBoundary } from '@/components/error-boundary';
-import { Button } from '@/components/ui/button';
+import { useApiQuery } from '@/hooks/use-api-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
   TableBody,
@@ -14,93 +12,98 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { 
-  Play, 
-  Pause, 
-  RefreshCw, 
-  Plus,
-  Clock,
-  CheckCircle,
-  XCircle,
-  Loader2
-} from 'lucide-react';
+import { RefreshCw, AlertTriangle, Clock, CheckCircle, XCircle, Loader2, Pause, Play } from 'lucide-react';
 
 // Types
 interface Job {
   id: string;
-  name: string;
-  type: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'paused';
-  created_at: string;
-  updated_at: string;
+  name?: string;
+  title?: string;
+  type?: string;
+  job_type?: string;
+  status: string;
   progress?: number;
+  created_at?: string;
+  updated_at?: string;
   error_message?: string;
 }
 
 interface JobsResponse {
-  jobs: Job[];
-  total: number;
-  page: number;
-  page_size: number;
+  jobs?: Job[];
+  data?: Job[];
+  items?: Job[];
+  total?: number;
+  count?: number;
+}
+
+// Loading skeleton component
+function JobsLoading() {
+  return (
+    <div className="space-y-6">
+      <Skeleton className="h-9 w-32" />
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-24" />
+        </CardHeader>
+        <CardContent>
+          {[...Array(5)].map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full mb-2" />
+          ))}
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
 
 // Status badge component
-function JobStatusBadge({ status }: { status: Job['status'] }) {
-  const variants: Record<Job['status'], { variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ElementType }> = {
+function StatusBadge({ status }: { status: string }) {
+  const statusConfig: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ElementType }> = {
     pending: { variant: 'secondary', icon: Clock },
     running: { variant: 'default', icon: Loader2 },
     completed: { variant: 'outline', icon: CheckCircle },
+    success: { variant: 'outline', icon: CheckCircle },
     failed: { variant: 'destructive', icon: XCircle },
+    error: { variant: 'destructive', icon: XCircle },
     paused: { variant: 'secondary', icon: Pause },
   };
 
-  const { variant, icon: Icon } = variants[status];
+  const config = statusConfig[status.toLowerCase()] || { variant: 'secondary' as const, icon: Clock };
+  const Icon = config.icon;
 
   return (
-    <Badge variant={variant} className="gap-1">
-      <Icon className={`h-3 w-3 ${status === 'running' ? 'animate-spin' : ''}`} />
-      {status.charAt(0).toUpperCase() + status.slice(1)}
+    <Badge variant={config.variant} className="gap-1">
+      <Icon className={`h-3 w-3 ${status.toLowerCase() === 'running' ? 'animate-spin' : ''}`} />
+      {status}
     </Badge>
   );
 }
 
 // Jobs content component
 function JobsContent() {
-  const [page, setPage] = useState(1);
-  
-  const { 
-    data, 
-    isLoading, 
-    isError, 
-    error, 
-    refetch 
-  } = useApiQuery<JobsResponse>(`/api/v1/jobs?page=${page}&page_size=10`, {
-    refetchInterval: 10000, // Refresh every 10 seconds for job status updates
-  });
+  const { data, isLoading, isError, error, refetch } = useApiQuery<JobsResponse>('/api/v1/jobs');
 
-  const { mutate: triggerJob, isLoading: isTriggering } = useApiMutation<Job, { jobId: string }>(
-    'post',
-    (vars) => `/api/v1/jobs/${vars.jobId}/trigger`,
-    {
-      onSuccess: () => refetch(),
-    }
-  );
+  if (isLoading) return <JobsLoading />;
 
-  if (isLoading) {
-    return <PageLoadingState message="Loading jobs..." />;
-  }
-
-  if (isError || !data) {
+  if (isError) {
     return (
-      <PageErrorState 
-        error={error || 'Failed to load jobs'} 
-        onRetry={refetch}
-        pageName="jobs"
-      />
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Alert variant="destructive" className="max-w-lg">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Failed to Load Jobs</AlertTitle>
+          <AlertDescription className="mt-2">
+            <p className="mb-4">{error?.message || 'Unable to load jobs data.'}</p>
+            <Button onClick={() => refetch()} variant="outline" size="sm">
+              <RefreshCw className="mr-2 h-4 w-4" /> Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
+      </div>
     );
   }
 
-  const { jobs, total } = data;
+  // Normalize response
+  const jobs: Job[] = data?.jobs || data?.data || data?.items || (Array.isArray(data) ? data : []);
+  const total = data?.total || data?.count || jobs.length;
 
   return (
     <div className="space-y-6">
@@ -108,20 +111,11 @@ function JobsContent() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Jobs</h1>
-          <p className="text-muted-foreground">
-            Manage and monitor background jobs
-          </p>
+          <p className="text-muted-foreground">Manage background jobs</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => refetch()}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
-          </Button>
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Create Job
-          </Button>
-        </div>
+        <Button variant="outline" onClick={() => refetch()}>
+          <RefreshCw className="mr-2 h-4 w-4" /> Refresh
+        </Button>
       </div>
 
       {/* Jobs table */}
@@ -129,14 +123,12 @@ function JobsContent() {
         <CardHeader>
           <CardTitle>All Jobs</CardTitle>
           <CardDescription>
-            {total} total job{total !== 1 ? 's' : ''}
+            {total} job{total !== 1 ? 's' : ''}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {jobs.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              No jobs found
-            </p>
+            <p className="text-center text-muted-foreground py-8">No jobs found</p>
           ) : (
             <Table>
               <TableHeader>
@@ -152,35 +144,15 @@ function JobsContent() {
               <TableBody>
                 {jobs.map((job) => (
                   <TableRow key={job.id}>
-                    <TableCell className="font-medium">{job.name}</TableCell>
-                    <TableCell>{job.type}</TableCell>
+                    <TableCell className="font-medium">{job.name || job.title || job.id}</TableCell>
+                    <TableCell>{job.type || job.job_type || '-'}</TableCell>
+                    <TableCell><StatusBadge status={job.status} /></TableCell>
+                    <TableCell>{job.progress !== undefined ? `${job.progress}%` : '-'}</TableCell>
+                    <TableCell>{job.created_at ? new Date(job.created_at).toLocaleDateString() : '-'}</TableCell>
                     <TableCell>
-                      <JobStatusBadge status={job.status} />
-                    </TableCell>
-                    <TableCell>
-                      {job.progress !== undefined ? `${job.progress}%` : '-'}
-                    </TableCell>
-                    <TableCell>
-                      {new Date(job.created_at).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        {job.status === 'pending' && (
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => triggerJob({ jobId: job.id })}
-                            disabled={isTriggering}
-                          >
-                            <Play className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {job.status === 'running' && (
-                          <Button variant="ghost" size="sm">
-                            <Pause className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
+                      <Button variant="ghost" size="sm">
+                        <Play className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -196,8 +168,6 @@ function JobsContent() {
 // Export wrapped with error boundary
 export default function Jobs() {
   return (
-    <ErrorBoundary>
-      <JobsContent />
-    </ErrorBoundary>
+    <JobsContent />
   );
 }

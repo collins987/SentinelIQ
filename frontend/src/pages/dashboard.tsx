@@ -1,55 +1,107 @@
 import { useApiQuery } from '@/hooks/use-api-query';
-import { PageLoadingState } from '@/components/loading-state';
-import { PageErrorState } from '@/components/error-state';
-import { ErrorBoundary } from '@/components/error-boundary';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { 
   Activity, 
   AlertTriangle, 
   CheckCircle, 
   Clock, 
-  FileText, 
-  Shield, 
-  Users 
+  RefreshCw,
+  Users,
+  WifiOff
 } from 'lucide-react';
 
-// Types for dashboard data
+// Types - adjust these to match your actual backend response
 interface DashboardStats {
-  total_alerts: number;
-  active_alerts: number;
-  resolved_alerts: number;
-  total_jobs: number;
-  running_jobs: number;
-  total_users: number;
-  active_users: number;
+  total_alerts?: number;
+  active_alerts?: number;
+  resolved_alerts?: number;
+  total_jobs?: number;
+  running_jobs?: number;
+  total_users?: number;
+  active_users?: number;
+  // Add any other fields your backend returns
+  [key: string]: unknown;
 }
 
 interface RecentActivity {
   id: string;
-  type: string;
-  description: string;
-  timestamp: string;
+  type?: string;
+  description?: string;
+  message?: string;
+  timestamp?: string;
+  created_at?: string;
   user?: string;
+  user_email?: string;
 }
 
-interface DashboardData {
-  stats: DashboardStats;
-  recent_activity: RecentActivity[];
+interface DashboardResponse {
+  stats?: DashboardStats;
+  recent_activity?: RecentActivity[];
+  // Your backend might return data differently
+  data?: DashboardStats;
+  activities?: RecentActivity[];
 }
 
-// Stat card component
+// Loading skeleton
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <Skeleton className="h-9 w-48" />
+        <Skeleton className="h-5 w-72 mt-2" />
+      </div>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {[...Array(4)].map((_, i) => (
+          <Card key={i}>
+            <CardHeader className="pb-2">
+              <Skeleton className="h-4 w-24" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-8 w-16" />
+              <Skeleton className="h-3 w-20 mt-2" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Error state
+function DashboardError({ error, onRetry }: { error: Error | null; onRetry: () => void }) {
+  const isNetworkError = error?.message?.includes('connect') || error?.message?.includes('Network');
+  
+  return (
+    <div className="flex items-center justify-center min-h-[400px]">
+      <Alert variant="destructive" className="max-w-lg">
+        {isNetworkError ? <WifiOff className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
+        <AlertTitle>{isNetworkError ? 'Connection Error' : 'Failed to Load Dashboard'}</AlertTitle>
+        <AlertDescription className="mt-2">
+          <p className="mb-4">{error?.message || 'Unable to load dashboard data.'}</p>
+          <Button onClick={onRetry} variant="outline" size="sm">
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Retry
+          </Button>
+        </AlertDescription>
+      </Alert>
+    </div>
+  );
+}
+
+// Stat card
 function StatCard({ 
   title, 
   value, 
   description, 
-  icon: Icon,
-  trend 
+  icon: Icon 
 }: { 
   title: string;
   value: number | string;
   description?: string;
   icon: React.ElementType;
-  trend?: { value: number; isPositive: boolean };
 }) {
   return (
     <Card>
@@ -58,119 +110,99 @@ function StatCard({
         <Icon className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        {description && (
-          <p className="text-xs text-muted-foreground">{description}</p>
-        )}
-        {trend && (
-          <p className={`text-xs ${trend.isPositive ? 'text-green-600' : 'text-red-600'}`}>
-            {trend.isPositive ? '+' : ''}{trend.value}% from last period
-          </p>
-        )}
+        <div className="text-2xl font-bold">{value ?? 0}</div>
+        {description && <p className="text-xs text-muted-foreground">{description}</p>}
       </CardContent>
     </Card>
   );
 }
 
-// Dashboard content component
-function DashboardContent() {
-  const { 
-    data, 
-    isLoading, 
-    isError, 
-    error, 
-    refetch 
-  } = useApiQuery<DashboardData>('/api/v1/dashboard/stats', {
-    refetchInterval: 30000, // Refresh every 30 seconds
-  });
+export default function Dashboard() {
+  // Try multiple possible endpoints
+  const { data, isLoading, isError, error, refetch } = useApiQuery<DashboardResponse>(
+    '/api/v1/dashboard/stats'
+  );
 
+  // Handle loading
   if (isLoading) {
-    return <PageLoadingState message="Loading dashboard..." />;
+    return <DashboardSkeleton />;
   }
 
-  if (isError || !data) {
-    return (
-      <PageErrorState 
-        error={error || 'Failed to load dashboard data'} 
-        onRetry={refetch}
-        pageName="dashboard"
-      />
-    );
+  // Handle error
+  if (isError) {
+    return <DashboardError error={error} onRetry={refetch} />;
   }
 
-  const { stats, recent_activity } = data;
+  // Normalize data (handle different response structures)
+  const stats: DashboardStats = data?.stats || data?.data || data || {};
+  const activities: RecentActivity[] = data?.recent_activity || data?.activities || [];
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Overview of your security monitoring system
-        </p>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">Security monitoring overview</p>
+        </div>
+        <Button variant="outline" onClick={() => refetch()}>
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Refresh
+        </Button>
       </div>
 
-      {/* Stats grid */}
+      {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Alerts"
-          value={stats.total_alerts}
-          description={`${stats.active_alerts} active`}
+          value={stats.total_alerts ?? 0}
+          description={`${stats.active_alerts ?? 0} active`}
           icon={AlertTriangle}
         />
         <StatCard
           title="Resolved"
-          value={stats.resolved_alerts}
+          value={stats.resolved_alerts ?? 0}
           description="Alerts resolved"
           icon={CheckCircle}
         />
         <StatCard
           title="Active Jobs"
-          value={stats.running_jobs}
-          description={`${stats.total_jobs} total`}
+          value={stats.running_jobs ?? 0}
+          description={`${stats.total_jobs ?? 0} total`}
           icon={Activity}
         />
         <StatCard
           title="Users"
-          value={stats.total_users}
-          description={`${stats.active_users} active`}
+          value={stats.total_users ?? 0}
+          description={`${stats.active_users ?? 0} active`}
           icon={Users}
         />
       </div>
 
-      {/* Recent activity */}
+      {/* Recent Activity */}
       <Card>
         <CardHeader>
           <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>Latest system events and alerts</CardDescription>
+          <CardDescription>Latest system events</CardDescription>
         </CardHeader>
         <CardContent>
-          {recent_activity.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              No recent activity
-            </p>
+          {activities.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">No recent activity</p>
           ) : (
             <div className="space-y-4">
-              {recent_activity.map((activity) => (
-                <div 
-                  key={activity.id} 
-                  className="flex items-start gap-4 border-b pb-4 last:border-0 last:pb-0"
-                >
+              {activities.slice(0, 5).map((activity) => (
+                <div key={activity.id} className="flex items-start gap-4 border-b pb-4 last:border-0">
                   <div className="rounded-full bg-muted p-2">
-                    <FileText className="h-4 w-4" />
+                    <Clock className="h-4 w-4" />
                   </div>
-                  <div className="flex-1 space-y-1">
-                    <p className="text-sm font-medium">{activity.description}</p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Clock className="h-3 w-3" />
-                      <span>{new Date(activity.timestamp).toLocaleString()}</span>
-                      {activity.user && (
-                        <>
-                          <span>•</span>
-                          <span>{activity.user}</span>
-                        </>
-                      )}
-                    </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">
+                      {activity.description || activity.message || 'Activity'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(activity.timestamp || activity.created_at || '').toLocaleString()}
+                      {(activity.user || activity.user_email) && ` • ${activity.user || activity.user_email}`}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -179,14 +211,5 @@ function DashboardContent() {
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-// Export wrapped with error boundary
-export default function Dashboard() {
-  return (
-    <ErrorBoundary>
-      <DashboardContent />
-    </ErrorBoundary>
   );
 }

@@ -1,12 +1,9 @@
-import { useState } from 'react';
 import { useApiQuery } from '@/hooks/use-api-query';
-import { PageLoadingState } from '@/components/loading-state';
-import { PageErrorState } from '@/components/error-state';
-import { ErrorBoundary } from '@/components/error-boundary';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
   TableBody,
@@ -15,168 +12,93 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { 
-  RefreshCw,
-  Search,
-  Download,
-  Filter,
-  Clock,
-  User,
-  Activity
-} from 'lucide-react';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { RefreshCw, AlertTriangle, Clock, User, Activity } from 'lucide-react';
 
-// Types
 interface AuditEntry {
   id: string;
-  action: string;
-  resource_type: string;
-  resource_id?: string;
-  user_id: string;
-  user_email: string;
+  action?: string;
+  event?: string;
+  event_type?: string;
+  resource_type?: string;
+  resource?: string;
+  user_id?: string;
+  user_email?: string;
+  user?: string;
   ip_address?: string;
-  user_agent?: string;
+  timestamp?: string;
+  created_at?: string;
+  status?: string;
   details?: Record<string, unknown>;
-  timestamp: string;
-  status: 'success' | 'failure';
 }
 
 interface AuditResponse {
-  entries: AuditEntry[];
-  total: number;
-  page: number;
-  page_size: number;
+  entries?: AuditEntry[];
+  data?: AuditEntry[];
+  items?: AuditEntry[];
+  logs?: AuditEntry[];
+  total?: number;
+  count?: number;
 }
 
-// Action badge component
-function ActionBadge({ action }: { action: string }) {
-  const actionColors: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-    create: 'default',
-    update: 'secondary',
-    delete: 'destructive',
-    login: 'outline',
-    logout: 'outline',
-    view: 'outline',
-  };
-
-  const variant = actionColors[action.toLowerCase()] || 'secondary';
-
+function AuditLoading() {
   return (
-    <Badge variant={variant}>
-      {action}
-    </Badge>
+    <div className="space-y-6">
+      <Skeleton className="h-9 w-40" />
+      <Card>
+        <CardHeader><Skeleton className="h-6 w-32" /></CardHeader>
+        <CardContent>
+          {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-12 w-full mb-2" />)}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
-// Audit content component
-function AuditContent() {
-  const [page, setPage] = useState(1);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [actionFilter, setActionFilter] = useState<string>('all');
-  
-  const queryParams = new URLSearchParams({
-    page: page.toString(),
-    page_size: '20',
-    ...(searchQuery && { search: searchQuery }),
-    ...(actionFilter !== 'all' && { action: actionFilter }),
-  });
+export default function Audit() {
+  const { data, isLoading, isError, error, refetch } = useApiQuery<AuditResponse>('/api/v1/audit');
 
-  const { 
-    data, 
-    isLoading, 
-    isError, 
-    error, 
-    refetch 
-  } = useApiQuery<AuditResponse>(`/api/v1/audit?${queryParams.toString()}`);
+  if (isLoading) return <AuditLoading />;
 
-  if (isLoading) {
-    return <PageLoadingState message="Loading audit trail..." />;
-  }
-
-  if (isError || !data) {
+  if (isError) {
     return (
-      <PageErrorState 
-        error={error || 'Failed to load audit trail'} 
-        onRetry={refetch}
-        pageName="audit trail"
-      />
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Alert variant="destructive" className="max-w-lg">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Failed to Load Audit Trail</AlertTitle>
+          <AlertDescription className="mt-2">
+            <p className="mb-4">{error?.message || 'Unable to load audit logs.'}</p>
+            <Button onClick={() => refetch()} variant="outline" size="sm">
+              <RefreshCw className="mr-2 h-4 w-4" /> Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
+      </div>
     );
   }
 
-  const { entries, total } = data;
+  const entries: AuditEntry[] = data?.entries || data?.data || data?.items || data?.logs || (Array.isArray(data) ? data : []);
+  const total = data?.total || data?.count || entries.length;
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Audit Trail</h1>
-          <p className="text-muted-foreground">
-            Track all system activities and changes
-          </p>
+          <p className="text-muted-foreground">System activity logs</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => refetch()}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
-          </Button>
-          <Button variant="outline">
-            <Download className="mr-2 h-4 w-4" />
-            Export
-          </Button>
-        </div>
+        <Button variant="outline" onClick={() => refetch()}>
+          <RefreshCw className="mr-2 h-4 w-4" /> Refresh
+        </Button>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search by user, action, or resource..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <Select value={actionFilter} onValueChange={setActionFilter}>
-              <SelectTrigger className="w-[180px]">
-                <Filter className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="Filter by action" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Actions</SelectItem>
-                <SelectItem value="create">Create</SelectItem>
-                <SelectItem value="update">Update</SelectItem>
-                <SelectItem value="delete">Delete</SelectItem>
-                <SelectItem value="login">Login</SelectItem>
-                <SelectItem value="logout">Logout</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Audit table */}
       <Card>
         <CardHeader>
           <CardTitle>Activity Log</CardTitle>
-          <CardDescription>
-            {total} total entr{total !== 1 ? 'ies' : 'y'}
-          </CardDescription>
+          <CardDescription>{total} entr{total !== 1 ? 'ies' : 'y'}</CardDescription>
         </CardHeader>
         <CardContent>
           {entries.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              No audit entries found
-            </p>
+            <p className="text-center text-muted-foreground py-8">No audit entries</p>
           ) : (
             <Table>
               <TableHeader>
@@ -186,7 +108,6 @@ function AuditContent() {
                   <TableHead>Action</TableHead>
                   <TableHead>Resource</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>IP Address</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -196,37 +117,31 @@ function AuditContent() {
                       <div className="flex items-center gap-2">
                         <Clock className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm">
-                          {new Date(entry.timestamp).toLocaleString()}
+                          {new Date(entry.timestamp || entry.created_at || '').toLocaleString()}
                         </span>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <User className="h-4 w-4 text-muted-foreground" />
-                        <span>{entry.user_email}</span>
+                        <span>{entry.user_email || entry.user || entry.user_id || '-'}</span>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <ActionBadge action={entry.action} />
+                      <Badge variant="secondary">
+                        {entry.action || entry.event || entry.event_type || '-'}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Activity className="h-4 w-4 text-muted-foreground" />
-                        <span>{entry.resource_type}</span>
-                        {entry.resource_id && (
-                          <span className="text-xs text-muted-foreground">
-                            ({entry.resource_id.slice(0, 8)}...)
-                          </span>
-                        )}
+                        <span>{entry.resource_type || entry.resource || '-'}</span>
                       </div>
                     </TableCell>
                     <TableCell>
                       <Badge variant={entry.status === 'success' ? 'outline' : 'destructive'}>
-                        {entry.status}
+                        {entry.status || 'success'}
                       </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {entry.ip_address || '-'}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -236,14 +151,5 @@ function AuditContent() {
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-// Export wrapped with error boundary
-export default function Audit() {
-  return (
-    <ErrorBoundary>
-      <AuditContent />
-    </ErrorBoundary>
   );
 }

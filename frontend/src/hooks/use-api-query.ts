@@ -1,12 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { api, ApiError } from '@/lib/api-client';
 
-interface UseApiQueryOptions<T> {
-  initialData?: T;
+interface UseApiQueryOptions {
   enabled?: boolean;
   refetchInterval?: number;
-  onSuccess?: (data: T) => void;
-  onError?: (error: ApiError) => void;
 }
 
 interface UseApiQueryResult<T> {
@@ -19,49 +16,69 @@ interface UseApiQueryResult<T> {
 
 export function useApiQuery<T>(
   endpoint: string,
-  options: UseApiQueryOptions<T> = {}
+  options: UseApiQueryOptions = {}
 ): UseApiQueryResult<T> {
-  const { initialData, enabled = true, refetchInterval, onSuccess, onError } = options;
-
-  const [data, setData] = useState<T | undefined>(initialData);
-  const [isLoading, setIsLoading] = useState(enabled);
+  const { enabled = true, refetchInterval } = options;
+  
+  const [data, setData] = useState<T | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
+  
+  const isMounted = useRef(true);
 
   const fetchData = useCallback(async () => {
-    if (!enabled) return;
+    if (!enabled) {
+      setIsLoading(false);
+      return;
+    }
 
     setIsLoading(true);
     setIsError(false);
     setError(null);
 
     try {
+      console.log(`[useApiQuery] Fetching: ${endpoint}`);
       const result = await api.get<T>(endpoint);
-      setData(result);
-      onSuccess?.(result);
-    } catch (err) {
-      const apiError = err instanceof ApiError 
-        ? err 
-        : new ApiError('An unexpected error occurred', 0, 'UNKNOWN');
       
-      setIsError(true);
-      setError(apiError);
-      onError?.(apiError);
-      console.error(`[useApiQuery] Failed to fetch ${endpoint}:`, apiError);
-    } finally {
-      setIsLoading(false);
+      if (isMounted.current) {
+        console.log(`[useApiQuery] Success: ${endpoint}`, result);
+        setData(result);
+        setIsLoading(false);
+      }
+    } catch (err) {
+      console.error(`[useApiQuery] Error: ${endpoint}`, err);
+      
+      if (isMounted.current) {
+        setIsError(true);
+        if (err instanceof ApiError) {
+          setError(err);
+        } else if (err instanceof Error) {
+          setError(new ApiError(err.message, 0, 'UNKNOWN_ERROR'));
+        } else {
+          setError(new ApiError('An unexpected error occurred', 0, 'UNKNOWN_ERROR'));
+        }
+        setIsLoading(false);
+      }
     }
-  }, [endpoint, enabled, onSuccess, onError]);
+  }, [endpoint, enabled]);
 
+  // Initial fetch
   useEffect(() => {
+    isMounted.current = true;
     fetchData();
+    
+    return () => {
+      isMounted.current = false;
+    };
   }, [fetchData]);
 
+  // Refetch interval
   useEffect(() => {
-    if (refetchInterval && enabled) {
-      const interval = setInterval(fetchData, refetchInterval);
-      return () => clearInterval(interval);
-    }
+    if (!refetchInterval || !enabled) return;
+
+    const intervalId = setInterval(fetchData, refetchInterval);
+    return () => clearInterval(intervalId);
   }, [refetchInterval, enabled, fetchData]);
 
   return {
@@ -73,32 +90,21 @@ export function useApiQuery<T>(
   };
 }
 
-// Mutation hook for POST/PUT/DELETE
+// Mutation hook
 interface UseApiMutationOptions<TData, TVariables> {
   onSuccess?: (data: TData, variables: TVariables) => void;
   onError?: (error: ApiError, variables: TVariables) => void;
 }
 
-interface UseApiMutationResult<TData, TVariables> {
-  mutate: (variables: TVariables) => Promise<TData | undefined>;
-  isLoading: boolean;
-  isError: boolean;
-  error: ApiError | null;
-  data: TData | undefined;
-  reset: () => void;
-}
-
-export function useApiMutation<TData, TVariables>(
+export function useApiMutation<TData, TVariables = unknown>(
   method: 'post' | 'put' | 'patch' | 'delete',
   endpoint: string | ((variables: TVariables) => string),
   options: UseApiMutationOptions<TData, TVariables> = {}
-): UseApiMutationResult<TData, TVariables> {
-  const { onSuccess, onError } = options;
-
-  const [data, setData] = useState<TData | undefined>(undefined);
+) {
   const [isLoading, setIsLoading] = useState(false);
   const [isError, setIsError] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
+  const [data, setData] = useState<TData | undefined>(undefined);
 
   const mutate = useCallback(async (variables: TVariables): Promise<TData | undefined> => {
     setIsLoading(true);
@@ -110,43 +116,46 @@ export function useApiMutation<TData, TVariables>(
     try {
       let result: TData;
       
-      if (method === 'delete') {
-        result = await api.delete<TData>(url);
-      } else {
-        result = await api[method]<TData>(url, variables);
+      switch (method) {
+        case 'post':
+          result = await api.post<TData>(url, variables);
+          break;
+        case 'put':
+          result = await api.put<TData>(url, variables);
+          break;
+        case 'patch':
+          result = await api.patch<TData>(url, variables);
+          break;
+        case 'delete':
+          result = await api.delete<TData>(url);
+          break;
       }
-      
+
       setData(result);
-      onSuccess?.(result, variables);
+      options.onSuccess?.(result, variables);
       return result;
     } catch (err) {
       const apiError = err instanceof ApiError 
         ? err 
-        : new ApiError('An unexpected error occurred', 0, 'UNKNOWN');
+        : new ApiError('Mutation failed', 0, 'MUTATION_ERROR');
       
       setIsError(true);
       setError(apiError);
-      onError?.(apiError, variables);
-      console.error(`[useApiMutation] Failed ${method} ${url}:`, apiError);
+      options.onError?.(apiError, variables);
       return undefined;
     } finally {
       setIsLoading(false);
     }
-  }, [method, endpoint, onSuccess, onError]);
+  }, [method, endpoint, options]);
 
   const reset = useCallback(() => {
-    setData(undefined);
     setIsLoading(false);
     setIsError(false);
     setError(null);
+    setData(undefined);
   }, []);
 
-  return {
-    mutate,
-    isLoading,
-    isError,
-    error,
-    data,
-    reset,
-  };
+  return { mutate, isLoading, isError, error, data, reset };
 }
+
+export { ApiError };

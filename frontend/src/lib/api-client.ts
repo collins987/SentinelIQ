@@ -1,133 +1,149 @@
-import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
+import axios, { AxiosError, AxiosInstance } from 'axios';
 
-// API Configuration
+// Get API URL from environment or default
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-// Custom error class for API errors
+console.log('[SentinelIQ] API Base URL:', API_BASE_URL);
+
 export class ApiError extends Error {
-  constructor(
-    message: string,
-    public status: number,
-    public code?: string,
-    public details?: unknown
-  ) {
+  status: number;
+  code: string;
+  
+  constructor(message: string, status: number, code: string = 'API_ERROR') {
     super(message);
     this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
   }
 }
 
-// Create axios instance with defaults
-const createApiClient = (): AxiosInstance => {
-  const client = axios.create({
-    baseURL: API_BASE_URL,
-    timeout: 30000,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    withCredentials: true,
-  });
+// Create axios instance
+const apiClient: AxiosInstance = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 30000,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  },
+  withCredentials: true,
+});
 
-  // Request interceptor - attach auth token
-  client.interceptors.request.use(
-    (config) => {
-      const token = localStorage.getItem('access_token');
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-      
-      // Log request in development
-      if (import.meta.env.DEV) {
-        console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`);
-      }
-      
-      return config;
-    },
-    (error) => {
-      console.error('[API Request Error]', error);
-      return Promise.reject(error);
+// Request interceptor
+apiClient.interceptors.request.use(
+  (config) => {
+    // Get token from localStorage
+    const token = localStorage.getItem('access_token');
+    
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
-  );
+    
+    console.log(`[API Request] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
+    return config;
+  },
+  (error) => {
+    console.error('[API Request Error]', error);
+    return Promise.reject(error);
+  }
+);
 
-  // Response interceptor - handle errors globally
-  client.interceptors.response.use(
-    (response: AxiosResponse) => {
-      if (import.meta.env.DEV) {
-        console.log(`[API Response] ${response.status} ${response.config.url}`);
-      }
-      return response;
-    },
-    (error: AxiosError) => {
-      // Network error (no response)
-      if (!error.response) {
-        console.error('[API Network Error] Backend unreachable:', error.message);
-        throw new ApiError(
-          'Unable to connect to the server. Please check your connection and try again.',
-          0,
-          'NETWORK_ERROR'
-        );
-      }
+// Response interceptor
+apiClient.interceptors.response.use(
+  (response) => {
+    console.log(`[API Response] ${response.status} ${response.config.url}`);
+    return response;
+  },
+  (error: AxiosError) => {
+    // Handle network errors (no response from server)
+    if (!error.response) {
+      console.error('[API] Network Error - Backend may be unreachable:', error.message);
+      return Promise.reject(new ApiError(
+        'Cannot connect to server. Please ensure the backend is running.',
+        0,
+        'NETWORK_ERROR'
+      ));
+    }
 
-      const { status, data } = error.response;
-      
-      // Handle specific status codes
-      if (status === 401) {
-        console.warn('[API Auth Error] Token expired or invalid');
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
+    const status = error.response.status;
+    const data = error.response.data as { detail?: string; message?: string };
+
+    console.error(`[API Error] ${status}:`, data);
+
+    // Handle 401 - Unauthorized
+    if (status === 401) {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      // Only redirect if not already on login page
+      if (!window.location.pathname.includes('/login')) {
         window.location.href = '/login';
-        throw new ApiError('Session expired. Please log in again.', 401, 'UNAUTHORIZED');
       }
-
-      if (status === 403) {
-        throw new ApiError('You do not have permission to perform this action.', 403, 'FORBIDDEN');
-      }
-
-      if (status === 404) {
-        throw new ApiError('The requested resource was not found.', 404, 'NOT_FOUND');
-      }
-
-      if (status >= 500) {
-        console.error('[API Server Error]', data);
-        throw new ApiError('Server error. Please try again later.', status, 'SERVER_ERROR', data);
-      }
-
-      // Generic error
-      const message = (data as { detail?: string })?.detail || 'An unexpected error occurred.';
-      throw new ApiError(message, status, 'API_ERROR', data);
+      return Promise.reject(new ApiError('Session expired. Please log in again.', 401, 'UNAUTHORIZED'));
     }
-  );
 
-  return client;
-};
+    // Handle 403 - Forbidden
+    if (status === 403) {
+      return Promise.reject(new ApiError('You do not have permission for this action.', 403, 'FORBIDDEN'));
+    }
 
-export const apiClient = createApiClient();
+    // Handle 404 - Not Found
+    if (status === 404) {
+      return Promise.reject(new ApiError('Resource not found.', 404, 'NOT_FOUND'));
+    }
 
-// Typed API methods
+    // Handle 422 - Validation Error
+    if (status === 422) {
+      const message = data?.detail || 'Validation error';
+      return Promise.reject(new ApiError(message, 422, 'VALIDATION_ERROR'));
+    }
+
+    // Handle 5xx - Server Errors
+    if (status >= 500) {
+      return Promise.reject(new ApiError('Server error. Please try again later.', status, 'SERVER_ERROR'));
+    }
+
+    // Generic error
+    const message = data?.detail || data?.message || 'An error occurred';
+    return Promise.reject(new ApiError(message, status, 'API_ERROR'));
+  }
+);
+
+// API helper methods
 export const api = {
-  get: <T>(url: string, config?: AxiosRequestConfig) => 
-    apiClient.get<T>(url, config).then(res => res.data),
-  
-  post: <T>(url: string, data?: unknown, config?: AxiosRequestConfig) => 
-    apiClient.post<T>(url, data, config).then(res => res.data),
-  
-  put: <T>(url: string, data?: unknown, config?: AxiosRequestConfig) => 
-    apiClient.put<T>(url, data, config).then(res => res.data),
-  
-  patch: <T>(url: string, data?: unknown, config?: AxiosRequestConfig) => 
-    apiClient.patch<T>(url, data, config).then(res => res.data),
-  
-  delete: <T>(url: string, config?: AxiosRequestConfig) => 
-    apiClient.delete<T>(url, config).then(res => res.data),
+  get: async <T>(url: string): Promise<T> => {
+    const response = await apiClient.get<T>(url);
+    return response.data;
+  },
+
+  post: async <T>(url: string, data?: unknown): Promise<T> => {
+    const response = await apiClient.post<T>(url, data);
+    return response.data;
+  },
+
+  put: async <T>(url: string, data?: unknown): Promise<T> => {
+    const response = await apiClient.put<T>(url, data);
+    return response.data;
+  },
+
+  patch: async <T>(url: string, data?: unknown): Promise<T> => {
+    const response = await apiClient.patch<T>(url, data);
+    return response.data;
+  },
+
+  delete: async <T>(url: string): Promise<T> => {
+    const response = await apiClient.delete<T>(url);
+    return response.data;
+  },
 };
 
 // Health check function
 export const checkApiHealth = async (): Promise<boolean> => {
   try {
-    await apiClient.get('/api/v1/health', { timeout: 5000 });
+    await apiClient.get('/api/v1/health');
     return true;
   } catch {
     return false;
   }
 };
 
+export { apiClient };
 export default api;
