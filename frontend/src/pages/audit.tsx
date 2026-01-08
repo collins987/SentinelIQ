@@ -1,5 +1,5 @@
 import { useApiQuery } from '@/hooks/use-api-query';
-import { API_ENDPOINTS } from '@/services/api-endpoints';
+import { API_ENDPOINTS, getAuditEndpoint } from '@/services/api-endpoints';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -56,10 +56,11 @@ function AuditLoading() {
 }
 
 export default function Audit() {
+  // Try multiple audit endpoints
   const { data, isLoading, isError, error, refetch } = useApiQuery<AuditResponse>(
-    API_ENDPOINTS.AUDIT.LIST,
+    getAuditEndpoint()[0],
     {
-      fallbackEndpoints: API_ENDPOINTS.AUDIT.FALLBACKS,
+      fallbackEndpoints: getAuditEndpoint().slice(1),
     }
   );
 
