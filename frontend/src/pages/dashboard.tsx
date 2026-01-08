@@ -1,4 +1,5 @@
 import { useApiQuery } from '@/hooks/use-api-query';
+import { API_ENDPOINTS } from '@/services/api-endpoints';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -118,10 +119,17 @@ function StatCard({
 }
 
 export default function Dashboard() {
-  // Try multiple possible endpoints
-  const { data, isLoading, isError, error, refetch } = useApiQuery<DashboardResponse>(
-    '/api/v1/dashboard/stats'
+  const { data, isLoading, isError, error, refetch, actualEndpoint } = useApiQuery<DashboardResponse>(
+    API_ENDPOINTS.DASHBOARD.STATS,
+    {
+      fallbackEndpoints: API_ENDPOINTS.DASHBOARD.FALLBACKS,
+    }
   );
+
+  // Show which endpoint worked in dev mode
+  if (import.meta.env.DEV && actualEndpoint) {
+    console.log(`[Dashboard] Using endpoint: ${actualEndpoint}`);
+  }
 
   // Handle loading
   if (isLoading) {

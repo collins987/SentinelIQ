@@ -1,4 +1,5 @@
 import { useApiQuery } from '@/hooks/use-api-query';
+import { API_ENDPOINTS } from '@/services/api-endpoints';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -80,7 +81,12 @@ function StatusBadge({ status }: { status: string }) {
 
 // Jobs content component
 function JobsContent() {
-  const { data, isLoading, isError, error, refetch } = useApiQuery<JobsResponse>('/api/v1/jobs');
+  const { data, isLoading, isError, error, refetch } = useApiQuery<JobsResponse>(
+    API_ENDPOINTS.JOBS.LIST,
+    {
+      fallbackEndpoints: API_ENDPOINTS.JOBS.FALLBACKS,
+    }
+  );
 
   if (isLoading) return <JobsLoading />;
 

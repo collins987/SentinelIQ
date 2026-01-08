@@ -4,6 +4,7 @@ import { api, ApiError } from '@/lib/api-client';
 interface UseApiQueryOptions {
   enabled?: boolean;
   refetchInterval?: number;
+  fallbackEndpoints?: string[]; // NEW: Try multiple endpoints
 }
 
 interface UseApiQueryResult<T> {
@@ -12,18 +13,20 @@ interface UseApiQueryResult<T> {
   isError: boolean;
   error: ApiError | null;
   refetch: () => Promise<void>;
+  actualEndpoint?: string; // NEW: Which endpoint worked
 }
 
 export function useApiQuery<T>(
-  endpoint: string,
+  endpoint: string | string[], // Can now accept array of endpoints
   options: UseApiQueryOptions = {}
 ): UseApiQueryResult<T> {
-  const { enabled = true, refetchInterval } = options;
+  const { enabled = true, refetchInterval, fallbackEndpoints = [] } = options;
   
   const [data, setData] = useState<T | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
+  const [actualEndpoint, setActualEndpoint] = useState<string | undefined>();
   
   const isMounted = useRef(true);
 
@@ -37,31 +40,47 @@ export function useApiQuery<T>(
     setIsError(false);
     setError(null);
 
-    try {
-      console.log(`[useApiQuery] Fetching: ${endpoint}`);
-      const result = await api.get<T>(endpoint);
+    // Build list of endpoints to try
+    const endpoints = Array.isArray(endpoint) 
+      ? endpoint 
+      : [endpoint, ...fallbackEndpoints];
+
+    // Try each endpoint until one succeeds
+    for (let i = 0; i < endpoints.length; i++) {
+      const currentEndpoint = endpoints[i];
       
-      if (isMounted.current) {
-        console.log(`[useApiQuery] Success: ${endpoint}`, result);
-        setData(result);
-        setIsLoading(false);
-      }
-    } catch (err) {
-      console.error(`[useApiQuery] Error: ${endpoint}`, err);
-      
-      if (isMounted.current) {
-        setIsError(true);
-        if (err instanceof ApiError) {
-          setError(err);
-        } else if (err instanceof Error) {
-          setError(new ApiError(err.message, 0, 'UNKNOWN_ERROR'));
-        } else {
-          setError(new ApiError('An unexpected error occurred', 0, 'UNKNOWN_ERROR'));
+      try {
+        console.log(`[useApiQuery] Trying endpoint ${i + 1}/${endpoints.length}: ${currentEndpoint}`);
+        const result = await api.get<T>(currentEndpoint);
+        
+        if (isMounted.current) {
+          console.log(`[useApiQuery] ✅ Success with: ${currentEndpoint}`);
+          setData(result);
+          setActualEndpoint(currentEndpoint);
+          setIsLoading(false);
+          return; // Success - stop trying
         }
-        setIsLoading(false);
+      } catch (err) {
+        console.warn(`[useApiQuery] ❌ Failed with: ${currentEndpoint}`, err);
+        
+        // If this is the last endpoint, set error
+        if (i === endpoints.length - 1) {
+          if (isMounted.current) {
+            setIsError(true);
+            if (err instanceof ApiError) {
+              setError(err);
+            } else if (err instanceof Error) {
+              setError(new ApiError(err.message, 0, 'UNKNOWN_ERROR'));
+            } else {
+              setError(new ApiError('All endpoints failed', 0, 'ALL_FAILED'));
+            }
+            setIsLoading(false);
+          }
+        }
+        // Otherwise, continue to next endpoint
       }
     }
-  }, [endpoint, enabled]);
+  }, [endpoint, fallbackEndpoints, enabled]);
 
   // Initial fetch
   useEffect(() => {
@@ -87,6 +106,7 @@ export function useApiQuery<T>(
     isError,
     error,
     refetch: fetchData,
+    actualEndpoint,
   };
 }
 

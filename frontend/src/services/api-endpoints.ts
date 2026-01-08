@@ -1,13 +1,14 @@
 /**
- * Central API endpoint definitions
- * UPDATE THESE TO MATCH YOUR ACTUAL BACKEND ROUTES
+ * API Endpoint Configuration
+ * UPDATE AFTER RUNNING: python discover-endpoints.py
  */
 
+// Common endpoint patterns to try
 export const API_ENDPOINTS = {
-  // Health
+  // Health check
   HEALTH: '/api/v1/health',
   
-  // Authentication
+  // Authentication endpoints (try multiple patterns)
   AUTH: {
     LOGIN: '/api/v1/auth/login',
     LOGOUT: '/api/v1/auth/logout',
@@ -15,12 +16,15 @@ export const API_ENDPOINTS = {
     ME: '/api/v1/auth/me',
   },
   
-  // Dashboard
+  // Dashboard - will try multiple patterns
   DASHBOARD: {
     STATS: '/api/v1/dashboard/stats',
-    // Alternative endpoints if your backend uses different routes:
-    // STATS: '/api/v1/stats',
-    // STATS: '/api/v1/dashboard',
+    FALLBACKS: [
+      '/api/v1/dashboard',
+      '/api/v1/stats',
+      '/dashboard/stats',
+      '/dashboard',
+    ],
   },
   
   // Jobs
@@ -28,18 +32,33 @@ export const API_ENDPOINTS = {
     LIST: '/api/v1/jobs',
     DETAIL: (id: string) => `/api/v1/jobs/${id}`,
     TRIGGER: (id: string) => `/api/v1/jobs/${id}/trigger`,
+    FALLBACKS: [
+      '/api/v1/job',
+      '/jobs',
+      '/api/jobs',
+    ],
   },
   
   // Users
   USERS: {
     LIST: '/api/v1/users',
     DETAIL: (id: string) => `/api/v1/users/${id}`,
+    FALLBACKS: [
+      '/api/v1/user',
+      '/users',
+      '/api/users',
+    ],
   },
   
-  // Audit
+  // Audit trail
   AUDIT: {
     LIST: '/api/v1/audit',
-    // Alternative: '/api/v1/audit-logs',
+    FALLBACKS: [
+      '/api/v1/audit-logs',
+      '/api/v1/logs',
+      '/audit',
+      '/api/audit',
+    ],
   },
   
   // Alerts
@@ -48,3 +67,11 @@ export const API_ENDPOINTS = {
     DETAIL: (id: string) => `/api/v1/alerts/${id}`,
   },
 } as const;
+
+// Helper to get endpoint with fallbacks
+export function getEndpointWithFallbacks(
+  primary: string,
+  fallbacks: string[] = []
+): string[] {
+  return [primary, ...fallbacks];
+}
