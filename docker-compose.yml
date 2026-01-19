@@ -1,58 +1,7 @@
 services:
-  frontend:
-    build:
-      context: ./sentineliq-ui
-      dockerfile: Dockerfile
-      target: development  # Use development stage for docker compose
-    container_name: sentineliq_frontend
-    ports:
-      - "5173:5173"
-    environment:
-      VITE_API_BASE_URL: http://localhost:8000
-      VITE_WS_URL: ws://localhost:8000/ws
-      VITE_API_TIMEOUT: 30000
-      VITE_ENABLE_ANALYTICS: "true"
-      VITE_ENABLE_DEBUG_MODE: "false"
-      VITE_LOG_LEVEL: info
-    volumes:
-      # Mount source code for hot reload
-      - ./sentineliq-ui/src:/app/src
-      - ./sentineliq-ui/public:/app/public
-      - ./sentineliq-ui/index.html:/app/index.html
-      - ./sentineliq-ui/vite.config.ts:/app/vite.config.ts
-      - ./sentineliq-ui/tsconfig.json:/app/tsconfig.json
-      - ./sentineliq-ui/tsconfig.node.json:/app/tsconfig.node.json
-      - ./sentineliq-ui/tailwind.config.js:/app/tailwind.config.js
-      - ./sentineliq-ui/postcss.config.js:/app/postcss.config.js
-      # Prevent node_modules from being overwritten
-      - /app/node_modules
-    restart: unless-stopped
-    networks:
-      - backend
-    depends_on:
-      - api
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5173/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-
-  # Blackbox exporter to probe frontend availability like other services
-  blackbox-exporter:
-    image: prom/blackbox-exporter:latest
-    container_name: sentineliq_blackbox
-    command:
-      - '--config.file=/etc/blackbox_exporter/blackbox.yml'
-    volumes:
-      - ./monitoring/blackbox.yml:/etc/blackbox_exporter/blackbox.yml:ro
-    restart: unless-stopped
-    networks:
-      - backend
-
   api:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
     container_name: sentineliq_api
     command: >
@@ -111,13 +60,16 @@ services:
     image: mailhog/mailhog
     container_name: sentineliq_mailhog
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
     restart: unless-stopped
     networks:
       - backend
 
-  # Event-Driven Risk Engine Infrastructure
+  # ============================================================================
+  # MILESTONE 1 & 2: Event-Driven Risk Engine Infrastructure
+  # ============================================================================
+
   # MinIO - S3-compatible object storage for immutable audit logs
   minio:
     image: minio/minio:latest
@@ -127,8 +79,8 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "9000:9000"  # S3 API
+      - "9001:9001"  # Web console
     volumes:
       - minio_data:/data
     healthcheck:
@@ -249,6 +201,144 @@ services:
     networks:
       - backend
 
+  # ============================================================================
+  # Kafka & Debezium CDC - Enterprise Event Streaming
+  # ============================================================================
+
+  # Zookeeper - Kafka coordination (Standalone Mode)
+  # Reference: https://docs.confluent.io/platform/current/zookeeper/deployment.html
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: sentineliq_zookeeper
+    hostname: zookeeper
+    environment:
+      # === Core ZooKeeper Configuration ===
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_INIT_LIMIT: 5
+      ZOOKEEPER_SYNC_LIMIT: 2
+      # Server ID (required even for standalone)
+      ZOOKEEPER_SERVER_ID: 1
+      # Empty for standalone mode - do NOT set ZOOKEEPER_SERVERS for single node
+      
+      # === JVM Memory Configuration ===
+      # Prevent OOM in containerized environments
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
+      
+      # === Enable 4-Letter-Word Commands for Healthcheck ===
+      # Confluent images disable most 4LW commands by default for security
+      # ruok: responds "imok" if running (used for healthcheck)
+      # srvr: provides server stats
+      # stat: provides connection stats  
+      # mntr: provides monitoring metrics
+      KAFKA_OPTS: "-Dzookeeper.4lw.commands.whitelist=ruok,srvr,stat,mntr"
+      
+      # === Session Configuration ===
+      ZOOKEEPER_MAX_CLIENT_CNXNS: 60
+      ZOOKEEPER_AUTOPURGE_SNAP_RETAIN_COUNT: 3
+      ZOOKEEPER_AUTOPURGE_PURGE_INTERVAL: 24
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
+    healthcheck:
+      # Uses ruok 4LW command - responds "imok" if ZooKeeper is healthy
+      # nc (netcat) sends the command and grep checks for expected response
+      test: ["CMD-SHELL", "echo ruok | nc -w 5 localhost 2181 | grep -q imok"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # Kafka - Event streaming platform
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: sentineliq_kafka
+    hostname: kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168  # 7 days
+      # JVM Memory - prevent OOM in containers
+      KAFKA_HEAP_OPTS: "-Xms512m -Xmx1g"
+      # Connection timeout to ZooKeeper
+      KAFKA_ZOOKEEPER_CONNECTION_TIMEOUT_MS: 60000
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:29092", "--list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # Debezium Connect - CDC for transactional outbox
+  debezium:
+    image: debezium/connect:2.4
+    container_name: sentineliq_debezium
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+    environment:
+      BOOTSTRAP_SERVERS: kafka:29092
+      GROUP_ID: sentineliq-debezium
+      CONFIG_STORAGE_TOPIC: debezium_configs
+      OFFSET_STORAGE_TOPIC: debezium_offsets
+      STATUS_STORAGE_TOPIC: debezium_statuses
+      CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      STATUS_STORAGE_REPLICATION_FACTOR: 1
+      KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/connectors"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # Kafka UI - Web interface for Kafka management
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: sentineliq_kafka_ui
+    depends_on:
+      - kafka
+    ports:
+      - "8086:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: sentineliq
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+      DYNAMIC_CONFIG_ENABLED: "true"
+    restart: unless-stopped
+    networks:
+      - backend
+
 volumes:
   pgdata:
   minio_data:
@@ -258,6 +348,9 @@ volumes:
   loki_compactor:
   loki_wal:
   vault_data:
+  zookeeper_data:
+  zookeeper_log:
+  kafka_data:
 
 networks:
   backend:
