@@ -1,337 +1,290 @@
-# app/routes/users.py
 """
-User Routes - Comprehensive user management with visibility controls.
-
-Implements:
-- User registration with email verification
-- User listing with role-based filtering
-- User profile access with visibility enforcement
-- User activity and audit log access
-- Rate limiting on sensitive endpoints
-
-All user data access goes through UserService for consistent security.
+User Routes - JWT-authenticated, Swagger-compatible user management.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Query
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Request,
+    Query,
+    Body,
+    Path,
+    status,
+)
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional
 import uuid
 
-from app.dependencies import get_current_user, get_db, require_role, require_permission
-from app.schemas.user import UserCreate, UserOut, UserListResponse, UserDetailResponse
-from app.models import User, AuditLog, UserStatus, UserVisibility
-from app.core.security import hash_password
-from app.services.token_service import generate_email_token
-from app.services.email_service import send_email
-from app.services.template_service import render_template
-from app.services.user_service import (
-    UserService, get_user_service,
-    UserNotFoundError, UserVisibilityError
+from app.dependencies import get_db
+from app.schemas.user import (
+    UserCreate,
+    UserUpdate,
+    UserOut,
+    UserListResponse,
+    UserDetailResponse,
 )
-from app.config import FRONTEND_BASE_URL
+from app.models import User, AuditLog, Organization, UserStatus, UserVisibility
+from app.services.user_service import (
+    UserService,
+    UserNotFoundError,
+    UserVisibilityError,
+)
+from app.core.security import hash_password, verify_password
+from app.services.token_service import create_access_token, decode_access_token
 
+# ---------------------------------------------------------------------
+# Router
+# ---------------------------------------------------------------------
 router = APIRouter(prefix="/users", tags=["Users"])
 
+# ---------------------------------------------------------------------
+# Security — JWT Bearer ONLY
+# ---------------------------------------------------------------------
+security = HTTPBearer()  # auto_error=True (default)
 
-def _get_request_context(request: Request) -> tuple[str, str, str]:
-    """Extract IP, user agent, and path from request for audit logging."""
-    ip = request.client.host if request.client else None
-    user_agent = request.headers.get("user-agent", "unknown")
-    path = str(request.url.path)
-    return ip, user_agent, path
+# ---------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------
+def _get_request_context(request: Optional[Request]) -> dict:
+    if not request:
+        return {}
+    return {
+        "ip_address": request.client.host if request.client else None,
+        "user_agent": request.headers.get("user-agent", "unknown"),
+        "request_path": str(request.url.path),
+    }
 
+# ---------------------------------------------------------------------
+# Current User Dependency
+# ---------------------------------------------------------------------
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+) -> User:
+    """
+    Reads Authorization: Bearer <access_token>
+    Decodes JWT and returns authenticated user.
+    """
 
-# =============================================================================
-# User Listing Endpoints
-# =============================================================================
+    if credentials.scheme.lower() != "bearer":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication scheme. Bearer token required.",
+        )
 
-@router.get("/", response_model=dict, summary="List users with visibility filtering")
-def list_users(
-    request: Request,
-    page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
-    include_system: bool = Query(True, description="Include system users"),
-    org_id: Optional[str] = Query(None, description="Filter by organization (admin only)"),
-    status: Optional[str] = Query(None, description="Filter by status"),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    try:
+        payload = decode_access_token(credentials.credentials)
+        user_id: Optional[str] = payload.get("sub")
+
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token payload")
+
+        user = db.query(User).filter(User.id == user_id).first()
+
+        if not user or not user.is_active:
+            raise HTTPException(status_code=401, detail="User not found or inactive")
+
+        return user
+
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+        )
+
+# ---------------------------------------------------------------------
+# Authentication (Login — JWT Issuer)
+# ---------------------------------------------------------------------
+@router.post("/auth/login", summary="Authenticate user and obtain JWT")
+def login(
+    email: str = Body(..., embed=True),
+    password: str = Body(..., embed=True),
+    db: Session = Depends(get_db),
 ):
     """
-    List users with role-based visibility.
-    
-    Access levels:
-    - **Admin**: See all users with full details
-    - **Analyst**: See org users + system users
-    - **Viewer**: See only system users (global visibility)
-    
-    Pagination and filtering supported.
+    Standard login endpoint.
+    Accepts JSON body.
+    Returns JWT access token.
     """
-    ip, user_agent, path = _get_request_context(request)
+    user = db.query(User).filter(User.email == email).first()
+
+    if not user or not verify_password(password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    access_token = create_access_token(
+        {
+            "sub": str(user.id),
+            "role": user.role,
+            "org_id": user.org_id,
+        }
+    )
+
+    return {"access_token": access_token, "token_type": "bearer"}
+
+# ---------------------------------------------------------------------
+# Get current authenticated user
+# ---------------------------------------------------------------------
+@router.get("/me", response_model=UserOut, summary="Get current authenticated user")
+def get_me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+# ---------------------------------------------------------------------
+# List Users
+# ---------------------------------------------------------------------
+@router.get("/", response_model=UserListResponse, summary="List users")
+def list_users(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    org_id: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+):
     service = UserService(db)
-    
+    ctx = _get_request_context(request)
+
     return service.list_users(
         accessor=current_user,
         page=page,
         page_size=page_size,
-        include_system_users=include_system,
         org_filter=org_id,
         status_filter=status,
-        ip_address=ip,
-        user_agent=user_agent,
-        request_path=path
+        **ctx,
     )
 
-
-@router.get("/system", summary="Get the system user")
-def get_system_user(
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Get the designated system user profile.
-    
-    The system user is a special user visible to all authenticated users
-    based on their permission level. Used for platform-wide notifications,
-    system actions, and compliance requirements.
-    """
-    service = UserService(db)
-    system_user = service.get_system_user(current_user)
-    
-    if not system_user:
-        raise HTTPException(
-            status_code=404,
-            detail="No system user configured"
-        )
-    
-    return {
-        "system_user": system_user,
-        "message": "System user retrieved successfully"
-    }
-
-
-# =============================================================================
-# User Profile Endpoints
-# =============================================================================
-
-@router.get("/me", response_model=UserOut, summary="Get current user profile")
-def read_current_user(current_user: User = Depends(get_current_user)):
-    """Get the authenticated user's own profile with full details."""
-    return current_user
-
-
-@router.get("/{user_id}", summary="Get user by ID")
+# ---------------------------------------------------------------------
+# Get User by ID
+# ---------------------------------------------------------------------
+@router.get("/{user_id}", response_model=UserDetailResponse, summary="Get user by ID")
 def get_user(
-    user_id: str,
     request: Request,
+    user_id: str = Path(...),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    """
-    Get user profile by ID with visibility enforcement.
-    
-    Access levels determine what fields are returned:
-    - **full**: All fields (admin or self)
-    - **metadata**: Public fields + metadata (with permission)
-    - **public**: Public fields only
-    - **redacted**: Minimal fields with PII masked
-    
-    All access is logged for compliance.
-    """
-    ip, user_agent, path = _get_request_context(request)
     service = UserService(db)
-    
+    ctx = _get_request_context(request)
+
     try:
-        user_data = service.get_user_by_id(
+        user = service.get_user_by_id(
             user_id=user_id,
             accessor=current_user,
-            ip_address=ip,
-            user_agent=user_agent,
-            request_path=path
+            **ctx,
         )
-        return {"user": user_data}
-    
+        return {"user": user}
+
     except UserNotFoundError:
         raise HTTPException(status_code=404, detail="User not found")
-    
     except UserVisibilityError as e:
         raise HTTPException(status_code=403, detail=str(e))
 
-
-@router.get("/{user_id}/activity", summary="Get user activity logs")
-def get_user_activity(
-    user_id: str,
+# ---------------------------------------------------------------------
+# Update User (PATCH — FIXED)
+# ---------------------------------------------------------------------
+@router.patch("/{user_id}", response_model=UserOut, summary="Update user")
+async def update_user(
     request: Request,
-    limit: int = Query(50, ge=1, le=200, description="Max results"),
+    user_id: str = Path(...),
+    payload: UserUpdate = Body(...),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    """
-    Get user's activity logs (actions they performed).
-    
-    Requires:
-    - Self-access (view own activity)
-    - OR `users.read_audit` permission (admin)
-    """
-    ip, user_agent, path = _get_request_context(request)
-    service = UserService(db)
-    
-    try:
-        return service.get_user_activity(
-            user_id=user_id,
-            accessor=current_user,
-            limit=limit,
-            ip_address=ip,
-            user_agent=user_agent,
-            request_path=path
-        )
-    
-    except UserNotFoundError:
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
-    except UserVisibilityError as e:
-        raise HTTPException(status_code=403, detail=str(e))
 
+    # Permission: user can update self, admin can update anyone
+    if user.id != current_user.id and current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions",
+        )
 
-@router.get("/{user_id}/audit", summary="Get user access audit logs")
-def get_user_audit_logs(
-    user_id: str,
-    request: Request,
-    limit: int = Query(50, ge=1, le=200, description="Max results"),
-    current_user: User = Depends(require_role(["admin"])),
-    db: Session = Depends(get_db)
+    raw_body = await request.json()
+    update_data = payload.dict(exclude_unset=True)
+
+    # 🔒 Risk score protection — ONLY if client ACTUALLY sets a value and is changing it
+    if "risk_score" in raw_body:
+        incoming_risk = raw_body.get("risk_score")
+        if incoming_risk is not None and incoming_risk != user.risk_score:
+            if current_user.role not in ("admin", "analyst"):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Cannot modify risk score",
+                )
+
+    # Apply updates safely
+    for field, value in update_data.items():
+        setattr(user, field, value)
+
+    user.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(user)
+
+    return user
+
+# ---------------------------------------------------------------------
+# Register User
+# ---------------------------------------------------------------------
+@router.post("/", response_model=UserOut, status_code=201, summary="Register new user")
+def create_user(
+    payload: UserCreate,
+    db: Session = Depends(get_db),
 ):
-    """
-    Get audit logs of who accessed this user's profile.
-    
-    **Admin only** - Used for compliance and security investigations.
-    
-    Shows:
-    - Who accessed the user's data
-    - When the access occurred
-    - What fields were accessed
-    - From what IP/location
-    """
-    ip, user_agent, path = _get_request_context(request)
-    service = UserService(db)
-    
-    try:
-        return service.get_user_access_logs(
-            user_id=user_id,
-            accessor=current_user,
-            limit=limit,
-            ip_address=ip,
-            user_agent=user_agent,
-            request_path=path
-        )
-    
-    except UserNotFoundError:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    except UserVisibilityError as e:
-        raise HTTPException(status_code=403, detail=str(e))
-
-
-@router.get("/{user_id}/permissions", summary="Get user permissions")
-def get_user_permissions(
-    user_id: str,
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Get user's role and permissions.
-    
-    Accessible by:
-    - Self (view own permissions)
-    - Admins (view any user's permissions)
-    - Users with `users.read_metadata` permission
-    """
-    ip, user_agent, path = _get_request_context(request)
-    service = UserService(db)
-    
-    try:
-        return service.get_user_permissions(
-            user_id=user_id,
-            accessor=current_user,
-            ip_address=ip,
-            user_agent=user_agent,
-            request_path=path
-        )
-    
-    except UserNotFoundError:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    except UserVisibilityError as e:
-        raise HTTPException(status_code=403, detail=str(e))
-
-
-# =============================================================================
-# User Registration
-# =============================================================================
-
-@router.post("/", response_model=UserOut, summary="Register new user")
-def create_user(user: UserCreate, db: Session = Depends(get_db)):
-    """
-    Register a new user account.
-    
-    - Email verification required before API access
-    - Default role is 'viewer'
-    - Password must be 8-72 characters
-    """
-    existing = db.query(User).filter(User.email == user.email).first()
-    if existing:
+    if db.query(User).filter(User.email == payload.email).first():
         raise HTTPException(status_code=400, detail="Email already exists")
 
-    db_user = User(
-        first_name=user.first_name,
-        last_name=user.last_name,
-        email=user.email,
-        password_hash=hash_password(user.password),
-        role=user.role if hasattr(user, "role") else "viewer",
-        status=UserStatus.PENDING.value,
-        visibility=UserVisibility.ORGANIZATION.value,  # Visible to org members by default
-        email_verified=False
-    )
+    org_id: Optional[str] = None
 
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    
-    # Send verification email
-    verification_token = generate_email_token(
-        user_id=db_user.id,
-        purpose="email_verification",
-        db=db
-    )
-    
-    verification_url = f"{FRONTEND_BASE_URL}/verify-email?token={verification_token}"
-    html = render_template(
-        "email_verification.html",
-        {
-            "first_name": db_user.first_name,
-            "verification_url": verification_url,
-        }
-    )
-    send_email(
-        to=db_user.email,
-        subject="Verify your SentinelIQ account",
-        html_content=html
-    )
-    
-    # Audit log
-    audit = AuditLog(
+    if payload.org_id:
+        org_id = str(payload.org_id)
+        org = db.query(Organization).filter(Organization.id == org_id).first()
+        if not org:
+            org = Organization(
+                id=org_id,
+                name=f"Organization {org_id}",
+                created_at=datetime.utcnow(),
+            )
+            db.add(org)
+            db.flush()
+
+    new_user = User(
         id=str(uuid.uuid4()),
-        actor_id=db_user.id,
-        action="user_registered",
-        target=db_user.id,
-        event_metadata={"email": db_user.email},
-        timestamp=datetime.utcnow()
+        first_name=payload.first_name,
+        last_name=payload.last_name,
+        email=payload.email,
+        password_hash=hash_password(payload.password),
+        role=payload.role or "viewer",
+        status=UserStatus.ACTIVE.value,
+        visibility=UserVisibility.ORGANIZATION.value,
+        org_id=org_id,
+        email_verified=True,
+        is_active=True,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
     )
-    db.add(audit)
-    db.commit()
-    
-    return db_user
 
-    return current_user
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    db.add(
+        AuditLog(
+            id=str(uuid.uuid4()),
+            actor_id=new_user.id,
+            action="user_registered",
+            target=new_user.id,
+            event_metadata={"email": new_user.email, "org_id": org_id},
+            timestamp=datetime.utcnow(),
+        )
+    )
+    db.commit()
+
+    return new_user

@@ -1,3 +1,26 @@
+import jwt
+from typing import Dict
+from app.config import JWT_SECRET_KEY, JWT_ALGORITHM
+
+def create_access_token(data: Dict, expires_delta: int = 3600) -> str:
+    """
+    Create a JWT token with given data.
+    Default expiration: 1 hour (3600s)
+    """
+    from datetime import datetime, timedelta
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(seconds=expires_delta)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+    return encoded_jwt
+
+def decode_access_token(token: str) -> Dict:
+    """
+    Decode a JWT token and return the payload.
+    Raises jwt exceptions if invalid/expired.
+    """
+    payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+    return payload
 """
 Secure email token generation and verification service.
 Supports email verification and password reset flows.

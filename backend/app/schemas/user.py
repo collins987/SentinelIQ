@@ -28,13 +28,19 @@ class UserCreate(BaseModel):
         description="Password must be between 8 and 72 characters"
     )
     role: str = Field(default="viewer", pattern="^(admin|analyst|viewer)$")
+    org_id: Optional[str] = Field(
+        None,
+        description="Organization ID (admin only, string or number)",
+        example="string"
+    )
 
 
 class UserUpdate(BaseModel):
-    """Schema for updating user profile."""
+    """Schema for updating user profile or risk score."""
     first_name: Optional[str] = Field(None, min_length=1, max_length=100)
     last_name: Optional[str] = Field(None, min_length=1, max_length=100)
     email: Optional[EmailStr] = None
+    risk_score: Optional[int] = Field(None, ge=0, le=100, description="Risk score (admin/analyst only)")
 
 
 # =============================================================================
@@ -44,7 +50,7 @@ class UserUpdate(BaseModel):
 class UserOut(BaseModel):
     """Full user response (for self or admin access)."""
     id: str
-    org_id: Optional[str] = None
+    org_id: Optional[str] = Field(None, description="Organization ID (if provided)")
     first_name: str
     last_name: str
     email: EmailStr
@@ -54,7 +60,7 @@ class UserOut(BaseModel):
     is_system_user: Optional[bool] = False
     risk_score: int = 0
     is_active: bool = True
-    email_verified: Optional[bool] = False
+    email_verified: Optional[bool] = True
     created_at: datetime
     updated_at: datetime
 

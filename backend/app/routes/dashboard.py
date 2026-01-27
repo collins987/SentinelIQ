@@ -215,18 +215,14 @@ async def get_active_users(
     # Get users with active sessions
     now = datetime.utcnow()
     
-    # Subquery to get users with active tokens
-    active_token_users = db.query(RefreshToken.user_id).filter(
-        and_(
-            RefreshToken.is_revoked == False,
-            RefreshToken.expires_at > now
-        )
-    ).distinct().subquery()
-    
+    # Subquery to get users with active tokens (SQLAlchemy 2.x compatible)
+    from sqlalchemy import select
+    active_token_users_subq = select(RefreshToken.user_id).where(
+        RefreshToken.is_revoked == False,
+        RefreshToken.expires_at > now
+    ).distinct()
     # Get users with those active sessions
-    query = db.query(User).filter(
-        User.id.in_(active_token_users)
-    )
+    query = db.query(User).filter(User.id.in_(active_token_users_subq))
     
     total = query.count()
     

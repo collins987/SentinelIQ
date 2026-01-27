@@ -3,14 +3,16 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 import uuid
 
-from app.dependencies import require_role, require_permission, get_db
+from app.dependencies import require_admin, get_db
+import logging
+logger = logging.getLogger("sentineliq")
 from app.models import User, AuditLog
 from app.core.auth_utils import revoke_all_user_tokens
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
 @router.get("/dashboard")
-def admin_dashboard(current_user = Depends(require_role(["admin"]))):
+def admin_dashboard(current_user = Depends(require_admin)):
     """Admin dashboard - admin only."""
     return {
         "msg": f"Welcome to the Admin Dashboard, {current_user.first_name}!",
@@ -21,7 +23,7 @@ def admin_dashboard(current_user = Depends(require_role(["admin"]))):
 
 @router.get("/audit-logs")
 def view_audit_logs(
-    current_admin: User = Depends(require_role(["admin"])),
+    current_admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
     limit: int = 50,
     offset: int = 0
@@ -45,7 +47,11 @@ def view_audit_logs(
 
 
 @router.post("/users/{user_id}/disable")
-def disable_user(user_id: str, current_admin: User = Depends(require_role(["admin"])), db: Session = Depends(get_db)):
+def disable_user(user_id: str, current_admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    logger.info(f"DISABLE: Looking for user_id={user_id}")
+    logger.info(f"DISABLE: DB URL: {db.bind.url if hasattr(db, 'bind') else 'unknown'}")
+    user = db.query(User).filter(User.id == user_id).first()
+    logger.info(f"DISABLE: Query result: {user}")
     """
     Disable user account (security incident, violation, etc).
     Immediately revokes all tokens and prevents login.
@@ -86,7 +92,11 @@ def disable_user(user_id: str, current_admin: User = Depends(require_role(["admi
 
 
 @router.post("/users/{user_id}/enable")
-def enable_user(user_id: str, current_admin: User = Depends(require_role(["admin"])), db: Session = Depends(get_db)):
+def enable_user(user_id: str, current_admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    logger.info(f"ENABLE: Looking for user_id={user_id}")
+    logger.info(f"ENABLE: DB URL: {db.bind.url if hasattr(db, 'bind') else 'unknown'}")
+    user = db.query(User).filter(User.id == user_id).first()
+    logger.info(f"ENABLE: Query result: {user}")
     """
     Re-enable user account (after investigation/incident resolved).
     Admin only.
@@ -123,9 +133,13 @@ def enable_user(user_id: str, current_admin: User = Depends(require_role(["admin
 def change_user_role(
     user_id: str,
     new_role: str,
-    current_admin: User = Depends(require_role(["admin"])),
+    current_admin: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
+    logger.info(f"CHANGE_ROLE: Looking for user_id={user_id}")
+    logger.info(f"CHANGE_ROLE: DB URL: {db.bind.url if hasattr(db, 'bind') else 'unknown'}")
+    user = db.query(User).filter(User.id == user_id).first()
+    logger.info(f"CHANGE_ROLE: Query result: {user}")
     """
     Change user role (admin, analyst, viewer).
     Admin only. Audit logged.

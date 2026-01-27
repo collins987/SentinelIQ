@@ -89,12 +89,36 @@ async def lifespan(app: FastAPI):
     logger.info("Application shutdown")
 
 
+
 app = FastAPI(
     title="SentinelIQ",
     description="Fintech Risk & Security Intelligence Platform",
     version="2.0.0",
     lifespan=lifespan,
 )
+
+# Enforce HTTPBearer as the ONLY security scheme in OpenAPI (Swagger)
+from fastapi.openapi.utils import get_openapi
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+    openapi_schema["components"]["securitySchemes"] = {
+        "HTTPBearer": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT"
+        }
+    }
+    openapi_schema["security"] = [{"HTTPBearer": []}]
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+app.openapi = custom_openapi
 
 # Print all registered routes on startup
 @app.on_event("startup")
@@ -173,12 +197,14 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         f"HTTP {exc.status_code}: {exc.detail}",
         extra={"path": request.url.path, "method": request.method}
     )
+    request_id = getattr(request.state, "request_id", None)
     return JSONResponse(
         status_code=exc.status_code,
         content={
             "error": True,
             "detail": exc.detail,
-            "status_code": exc.status_code
+            "status_code": exc.status_code,
+            "request_id": request_id
         }
     )
 
@@ -190,12 +216,14 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         f"Validation error on {request.url.path}",
         extra={"errors": exc.errors()}
     )
+    request_id = getattr(request.state, "request_id", None)
     return JSONResponse(
         status_code=422,
         content={
             "error": True,
             "detail": "Validation error",
-            "errors": exc.errors()
+            "errors": exc.errors(),
+            "request_id": request_id
         }
     )
 
@@ -207,12 +235,14 @@ async def global_exception_handler(request: Request, exc: Exception):
     Prevents crashes from unhandled exceptions.
     """
     error_id = f"ERR-{id(exc)}"
+    request_id = getattr(request.state, "request_id", None)
     logger.error(
         f"Unhandled exception [{error_id}]: {type(exc).__name__}: {exc}",
         extra={
             "path": request.url.path,
             "method": request.method,
             "error_id": error_id,
+            "request_id": request_id,
             "traceback": traceback.format_exc()
         }
     )
@@ -221,7 +251,8 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={
             "error": True,
             "detail": "Internal server error",
-            "error_id": error_id
+            "error_id": error_id,
+            "request_id": request_id
         }
     )
 
