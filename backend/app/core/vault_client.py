@@ -16,6 +16,8 @@ Compliance: PCI-DSS Requirement 3.5, SOC 2
 """
 
 import logging
+import asyncio
+from prometheus_client import Counter, Gauge
 import os
 from typing import Optional, Dict, Any, Tuple
 from datetime import datetime, timedelta
@@ -30,6 +32,19 @@ from hvac.exceptions import VaultError, InvalidPath, Forbidden
 from app.config import VAULT_ADDR, VAULT_TOKEN, VAULT_SECRET_PATH
 
 logger = logging.getLogger("sentineliq.vault")
+
+# Prometheus metrics
+vault_token_renewals = Counter('vault_token_renewals_total', 'Total Vault token renewals')
+vault_secret_access = Counter('vault_secret_access_total', 'Total Vault secret accesses', ['user_id', 'role', 'action'])
+vault_crypto_ops = Counter('vault_crypto_ops_total', 'Total Vault crypto operations', ['user_id', 'role', 'action'])
+vault_errors = Counter('vault_errors_total', 'Total Vault errors', ['action'])
+vault_token_ttl_gauge = Gauge('vault_token_ttl_seconds', 'Vault token time-to-live in seconds')
+
+# RBAC enforcement helper
+def enforce_vault_rbac(user_role, allowed_roles, action, user_id=None):
+    if user_role not in allowed_roles:
+        logger.warning(f"RBAC: {user_role} not allowed to perform {action}", extra={"user_id": user_id, "role": user_role, "action": action})
+        raise PermissionError(f"Role {user_role} not allowed for {action}")
 
 
 @dataclass
@@ -122,6 +137,19 @@ class VaultClient:
         except Exception:
             return False
     
+    async def _background_token_renewal(self):
+        """Background task to renew Vault token periodically."""
+        while True:
+            try:
+                self._ensure_authenticated()
+            except Exception as e:
+                logger.warning(f"Vault token renewal failed: {e}")
+            await asyncio.sleep(60)
+
+    def start_token_renewal_task(self):
+        if not hasattr(self, '_token_renewal_task'):
+            self._token_renewal_task = asyncio.create_task(self._background_token_renewal())
+
     def _ensure_authenticated(self):
         """Ensure client is authenticated, renew if needed."""
         if not self._initialized:
@@ -130,6 +158,7 @@ class VaultClient:
         # Check if token needs renewal
         if self._token_expiry:
             time_remaining = (self._token_expiry - datetime.utcnow()).total_seconds()
+            vault_token_ttl_gauge.set(time_remaining)
             if time_remaining < self.config.renewal_threshold_seconds:
                 try:
                     self._client.auth.token.renew_self()
@@ -137,6 +166,7 @@ class VaultClient:
                     ttl = token_info['data'].get('ttl', 0)
                     self._token_expiry = datetime.utcnow() + timedelta(seconds=ttl)
                     logger.info("Vault token renewed")
+                    vault_token_renewals.inc()
                 except Exception as e:
                     logger.warning(f"Failed to renew Vault token: {e}")
     
@@ -144,7 +174,7 @@ class VaultClient:
     # KV Secrets Engine
     # =========================================================================
     
-    def get_secret(self, path: str) -> Optional[Dict[str, Any]]:
+    def get_secret(self, path: str, user_id: str = None, role: str = None) -> Optional[Dict[str, Any]]:
         """
         Get a secret from KV secrets engine.
         
@@ -156,29 +186,31 @@ class VaultClient:
         """
         if not self._initialized:
             logger.warning("Vault not available, returning None")
+            vault_errors.labels(action="get_secret").inc()
             return None
-        
         try:
             self._ensure_authenticated()
-            
+            # RBAC: Only admin/analyst can access secrets
+            enforce_vault_rbac(role, ["admin", "analyst"], "get_secret", user_id)
             response = self._client.secrets.kv.v2.read_secret_version(
                 path=path,
                 mount_point=self.config.kv_mount
             )
-            
+            vault_secret_access.labels(user_id or "unknown", role or "unknown", "get_secret").inc()
             return response.get('data', {}).get('data', {})
-            
         except InvalidPath:
             logger.debug(f"Secret not found: {path}")
             return None
         except Forbidden:
             logger.error(f"Access denied to secret: {path}")
+            vault_errors.labels(action="get_secret").inc()
             return None
         except Exception as e:
             logger.error(f"Error reading secret {path}: {e}")
+            vault_errors.labels(action="get_secret").inc()
             return None
     
-    def put_secret(self, path: str, data: Dict[str, Any]) -> bool:
+    def put_secret(self, path: str, data: Dict[str, Any], user_id: str = None, role: str = None) -> bool:
         """
         Store a secret in KV secrets engine.
         
@@ -191,42 +223,42 @@ class VaultClient:
         """
         if not self._initialized:
             logger.warning("Vault not available, cannot store secret")
+            vault_errors.labels(action="put_secret").inc()
             return False
-        
         try:
             self._ensure_authenticated()
-            
+            enforce_vault_rbac(role, ["admin"], "put_secret", user_id)
             self._client.secrets.kv.v2.create_or_update_secret(
                 path=path,
                 secret=data,
                 mount_point=self.config.kv_mount
             )
-            
             logger.debug(f"Secret stored: {path}")
+            vault_secret_access.labels(user_id or "unknown", role or "unknown", "put_secret").inc()
             return True
-            
         except Exception as e:
             logger.error(f"Error storing secret {path}: {e}")
+            vault_errors.labels(action="put_secret").inc()
             return False
     
-    def delete_secret(self, path: str) -> bool:
+    def delete_secret(self, path: str, user_id: str = None, role: str = None) -> bool:
         """Delete a secret from KV secrets engine."""
         if not self._initialized:
+            vault_errors.labels(action="delete_secret").inc()
             return False
-        
         try:
             self._ensure_authenticated()
-            
+            enforce_vault_rbac(role, ["admin"], "delete_secret", user_id)
             self._client.secrets.kv.v2.delete_metadata_and_all_versions(
                 path=path,
                 mount_point=self.config.kv_mount
             )
-            
             logger.info(f"Secret deleted: {path}")
+            vault_secret_access.labels(user_id or "unknown", role or "unknown", "delete_secret").inc()
             return True
-            
         except Exception as e:
             logger.error(f"Error deleting secret {path}: {e}")
+            vault_errors.labels(action="delete_secret").inc()
             return False
     
     # =========================================================================
@@ -259,7 +291,7 @@ class VaultClient:
             logger.error(f"Error checking transit key {key_name}: {e}")
             return False
     
-    def encrypt(self, key_name: str, plaintext: str) -> Optional[str]:
+    def encrypt(self, key_name: str, plaintext: str, user_id: str = None, role: str = None) -> Optional[str]:
         """
         Encrypt data using Vault Transit engine.
         
@@ -272,29 +304,29 @@ class VaultClient:
         """
         if not self._initialized:
             logger.warning("Vault not available, encryption not possible")
+            vault_errors.labels(action="encrypt").inc()
             return None
-        
         try:
             self._ensure_authenticated()
+            # RBAC: All roles can encrypt their own data, only admin/analyst can encrypt analytics
+            allowed_roles = ["admin", "analyst"] if key_name.startswith("analytics_") else ["admin", "analyst", "user"]
+            enforce_vault_rbac(role, allowed_roles, "encrypt", user_id)
             self._ensure_transit_key(key_name)
-            
-            # Base64 encode plaintext
             plaintext_b64 = base64.b64encode(plaintext.encode()).decode()
-            
             response = self._client.secrets.transit.encrypt_data(
                 name=key_name,
                 plaintext=plaintext_b64,
                 mount_point=self.config.transit_mount
             )
-            
             ciphertext = response['data']['ciphertext']
+            vault_crypto_ops.labels(user_id or "unknown", role or "unknown", "encrypt").inc()
             return ciphertext
-            
         except Exception as e:
             logger.error(f"Encryption failed: {e}")
+            vault_errors.labels(action="encrypt").inc()
             return None
     
-    def decrypt(self, key_name: str, ciphertext: str) -> Optional[str]:
+    def decrypt(self, key_name: str, ciphertext: str, user_id: str = None, role: str = None) -> Optional[str]:
         """
         Decrypt data using Vault Transit engine.
         
@@ -307,26 +339,27 @@ class VaultClient:
         """
         if not self._initialized:
             logger.warning("Vault not available, decryption not possible")
+            vault_errors.labels(action="decrypt").inc()
             return None
-        
         try:
             self._ensure_authenticated()
-            
+            allowed_roles = ["admin", "analyst"] if key_name.startswith("analytics_") else ["admin", "analyst", "user"]
+            enforce_vault_rbac(role, allowed_roles, "decrypt", user_id)
             response = self._client.secrets.transit.decrypt_data(
                 name=key_name,
                 ciphertext=ciphertext,
                 mount_point=self.config.transit_mount
             )
-            
             plaintext_b64 = response['data']['plaintext']
             plaintext = base64.b64decode(plaintext_b64).decode()
+            vault_crypto_ops.labels(user_id or "unknown", role or "unknown", "decrypt").inc()
             return plaintext
-            
         except Exception as e:
             logger.error(f"Decryption failed: {e}")
+            vault_errors.labels(action="decrypt").inc()
             return None
     
-    def delete_encryption_key(self, key_name: str) -> bool:
+    def delete_encryption_key(self, key_name: str, user_id: str = None, role: str = None) -> bool:
         """
         Delete a transit encryption key (crypto-shredding).
         
@@ -336,32 +369,29 @@ class VaultClient:
         WARNING: This is irreversible!
         """
         if not self._initialized:
+            vault_errors.labels(action="delete_encryption_key").inc()
             return False
-        
         try:
             self._ensure_authenticated()
-            
-            # First, update key config to allow deletion
+            enforce_vault_rbac(role, ["admin"], "delete_encryption_key", user_id)
             self._client.secrets.transit.update_key_configuration(
                 name=key_name,
                 deletion_allowed=True,
                 mount_point=self.config.transit_mount
             )
-            
-            # Delete the key
             self._client.secrets.transit.delete_key(
                 name=key_name,
                 mount_point=self.config.transit_mount
             )
-            
             logger.warning(f"Encryption key deleted (crypto-shred): {key_name}")
+            vault_crypto_ops.labels(user_id or "unknown", role or "unknown", "delete_encryption_key").inc()
             return True
-            
         except InvalidPath:
             logger.debug(f"Key not found: {key_name}")
             return True  # Already deleted
         except Exception as e:
             logger.error(f"Failed to delete encryption key {key_name}: {e}")
+            vault_errors.labels(action="delete_encryption_key").inc()
             return False
     
     # =========================================================================
@@ -442,15 +472,17 @@ class VaultClient:
         return self.delete_encryption_key(key_name)
 
 
-# Singleton instance
-_vault_client: Optional[VaultClient] = None
-
-
 def get_vault_client() -> VaultClient:
-    """Get or create Vault client singleton."""
+_vault_client: Optional[VaultClient] = None
+def get_vault_client() -> VaultClient:
     global _vault_client
     if _vault_client is None:
         _vault_client = VaultClient()
+        # Start background token renewal
+        try:
+            _vault_client.start_token_renewal_task()
+        except Exception as e:
+            logger.warning(f"Vault token renewal task not started: {e}")
     return _vault_client
 
 

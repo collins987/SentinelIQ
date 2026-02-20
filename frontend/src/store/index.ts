@@ -1,12 +1,14 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { setupListeners } from '@reduxjs/toolkit/query';
 import { dashboardApi } from '../services/dashboardApi';
+import { userApi } from '../services/userApi';
 import authReducer from '../features/authSlice';
 import dashboardReducer from '../features/dashboardSlice';
 
 export const store = configureStore({
   reducer: {
     [dashboardApi.reducerPath]: dashboardApi.reducer,
+    [userApi.reducerPath]: userApi.reducer,
     auth: authReducer,
     dashboard: dashboardReducer,
   },
@@ -14,7 +16,7 @@ export const store = configureStore({
     getDefaultMiddleware({
       serializableCheck: process.env.NODE_ENV === 'production',
       immutableCheck: process.env.NODE_ENV === 'production',
-    }).concat(dashboardApi.middleware),
+    }).concat(dashboardApi.middleware, userApi.middleware),
 });
 
 setupListeners(store.dispatch);

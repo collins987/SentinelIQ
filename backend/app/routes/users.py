@@ -35,11 +35,174 @@ from app.services.user_service import (
 from app.core.security import hash_password, verify_password
 from app.services.token_service import create_access_token, decode_access_token
 
+
 # ---------------------------------------------------------------------
 # Router
 # ---------------------------------------------------------------------
 router = APIRouter(prefix="/users", tags=["Users"])
 
+# ---------------------------------------------------------------------
+# User Dashboard Router (no prefix - for /user/* endpoints)
+# ---------------------------------------------------------------------
+from pydantic import BaseModel
+from app.dependencies import get_current_user
+from datetime import timedelta
+
+user_router = APIRouter(tags=["User Dashboard"])
+
+@user_router.get("/user/profile", summary="Get current user's profile")
+def get_user_profile_root(current_user: User = Depends(get_current_user)):
+    return {
+        "id": current_user.id,
+        "name": f"{current_user.first_name} {current_user.last_name}",
+        "email": current_user.email,
+        "role": current_user.role,
+    }
+
+@user_router.get("/user/dashboard", summary="Get all user dashboard info (profile, risk, activity, session)")
+def get_user_dashboard_root(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    from sqlalchemy import desc, and_, func
+    now = datetime.utcnow()
+    profile = {
+        "id": current_user.id,
+        "name": f"{current_user.first_name} {current_user.last_name}",
+        "email": current_user.email,
+        "role": current_user.role,
+    }
+    risk_scores = []
+    if hasattr(current_user, "risk_score"):
+        risk_scores.append({
+            "id": current_user.id,
+            "score": getattr(current_user, "risk_score", 0),
+            "type": "overall",
+            "suggestions": ["Review recent activity", "Update password regularly"]
+        })
+    recent_actions = db.query(AuditLog).filter(
+        AuditLog.actor_id == current_user.id
+    ).order_by(desc(AuditLog.timestamp)).limit(10).all()
+    cutoff_24h = now - timedelta(hours=24)
+    failed_logins = db.query(func.count(AuditLog.id)).filter(
+        and_(
+            AuditLog.actor_id == current_user.id,
+            AuditLog.action == "login_failed",
+            AuditLog.timestamp >= cutoff_24h
+        )
+    ).scalar() or 0
+    session_info = {
+        "last_login_at": current_user.last_login_at.isoformat() if current_user.last_login_at else None,
+        "last_login_ip": current_user.last_login_ip,
+        "last_device_info": current_user.last_device_info,
+        "active_sessions": db.query(func.count()).select_from(AuditLog).filter(
+            AuditLog.actor_id == current_user.id,
+            AuditLog.action == "login_success",
+            AuditLog.timestamp >= cutoff_24h
+        ).scalar() or 0
+    }
+    import json
+    return {
+        "profile": profile,
+        "risk_scores": risk_scores,
+        "activity": {
+            "failed_logins_24h": failed_logins,
+            "recent_actions": [
+                {
+                    "action": log.action,
+                    "target": log.target if isinstance(log.target, str) or log.target is None else json.dumps(log.target),
+                    "timestamp": log.timestamp.isoformat() if log.timestamp else None
+                }
+                for log in recent_actions
+            ]
+        },
+        "session": session_info
+    }
+
+# ---------------------------------------------------------------------
+# User Profile Endpoint (legacy /users/profile)
+# ---------------------------------------------------------------------
+@router.get("/profile", summary="Get current user's profile")
+def get_user_profile(current_user: User = Depends(get_current_user)):
+    return {
+        "id": current_user.id,
+        "name": f"{current_user.first_name} {current_user.last_name}",
+        "email": current_user.email,
+        "role": current_user.role,
+    }
+
+# ---------------------------------------------------------------------
+# Support Ticket Endpoint (for user dashboard)
+# ---------------------------------------------------------------------
+class SupportTicketIn(BaseModel):
+    message: str
+    email: str
+
+@router.post("/support/ticket", summary="Submit a support ticket")
+def submit_support_ticket(
+    ticket: SupportTicketIn = Body(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # For demo: just log the ticket, in production store or send to admin
+    db.add(AuditLog(
+        id=str(uuid.uuid4()),
+        actor_id=current_user.id,
+        action="support_ticket_submitted",
+        target=current_user.id,
+        event_metadata={"email": ticket.email, "message": ticket.message},
+        timestamp=datetime.utcnow(),
+    ))
+    db.commit()
+    return {"success": True}
+
+# ---------------------------------------------------------------------
+# User Activity Endpoint (for user dashboard)
+# ---------------------------------------------------------------------
+@router.get("/user/activity", summary="Get current user's recent activity and session info")
+def get_user_activity(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    from sqlalchemy import desc, and_, func
+    now = datetime.utcnow()
+    # Get recent activity logs (last 10 actions)
+    recent_actions = db.query(AuditLog).filter(
+        AuditLog.actor_id == current_user.id
+    ).order_by(desc(AuditLog.timestamp)).limit(10).all()
+    # Get failed login attempts in last 24h
+    cutoff_24h = now - timedelta(hours=24)
+    failed_logins = db.query(func.count(AuditLog.id)).filter(
+        and_(
+            AuditLog.actor_id == current_user.id,
+            AuditLog.action == "login_failed",
+            AuditLog.timestamp >= cutoff_24h
+        )
+    ).scalar() or 0
+    # Get session info
+    session_info = {
+        "last_login_at": current_user.last_login_at.isoformat() if current_user.last_login_at else None,
+        "last_login_ip": current_user.last_login_ip,
+        "last_device_info": current_user.last_device_info,
+        "active_sessions": db.query(func.count()).select_from(AuditLog).filter(
+            AuditLog.actor_id == current_user.id,
+            AuditLog.action == "login_success",
+            AuditLog.timestamp >= cutoff_24h
+        ).scalar() or 0
+    }
+    import json
+    return {
+        "activity": {
+            "failed_logins_24h": failed_logins,
+            "recent_actions": [
+                {
+                    "action": log.action,
+                    "target": log.target if isinstance(log.target, str) or log.target is None else json.dumps(log.target),
+                    "timestamp": log.timestamp.isoformat() if log.timestamp else None
+                }
+                for log in recent_actions
+            ]
+        },
+        "session": session_info
+    }
+
+# ---------------------------------------------------------------------
+# User Dashboard Summary Endpoint (for user dashboard)
+# ---------------------------------------------------------------------
 # ---------------------------------------------------------------------
 # Security — JWT Bearer ONLY
 # ---------------------------------------------------------------------
@@ -111,8 +274,32 @@ def login(
     Accepts JSON body.
     Returns JWT access token.
     """
-    user = db.query(User).filter(User.email == email).first()
 
+    from app.config import DEV_MODE, ADMIN_EMAIL, ADMIN_PASSWORD, TEST_USER_EMAIL, TEST_USER_PASSWORD
+
+    # Universal admin login (not stored in DB)
+    if DEV_MODE and email == ADMIN_EMAIL and password == ADMIN_PASSWORD:
+        return {
+            "access_token": create_access_token({
+                "sub": "admin-bootstrap",
+                "role": "admin",
+                "org_id": None,
+            }),
+            "token_type": "bearer"
+        }
+
+    # Dummy test user login (DEV_MODE only)
+    if DEV_MODE and email == TEST_USER_EMAIL and password == TEST_USER_PASSWORD:
+        return {
+            "access_token": create_access_token({
+                "sub": "test-user",
+                "role": "viewer",
+                "org_id": None,
+            }),
+            "token_type": "bearer"
+        }
+
+    user = db.query(User).filter(User.email == email).first()
     if not user or not verify_password(password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 

@@ -58,6 +58,7 @@ numpy==1.26.4
 cryptography==42.0.0
 
 # Async utilities
+aiosmtplib==1.1.7
 aiofiles==23.2.1
 
 PyJWT>=2.0.0

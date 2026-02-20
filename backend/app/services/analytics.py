@@ -14,6 +14,28 @@ from typing import Dict, List, Any, Optional
 
 class AnalyticsService:
     """Service for generating analytics and monitoring data"""
+
+    @staticmethod
+    def get_risk_review_data(db: Session, hours: int = 24, limit: int = 10) -> Dict[str, Any]:
+        """Aggregate risk-related analytics for analyst review"""
+        # Use existing analytics: failed logins, forbidden access, alerts, recent audit events
+        failed_logins = AnalyticsService.get_failed_login_attempts_by_user(db, limit=limit, hours=hours)
+        forbidden_access = AnalyticsService.get_forbidden_access_attempts(db, hours=hours, limit=limit)
+        audit_summary = AnalyticsService.get_audit_log_summary(db, hours=hours)
+        # Alerts (if available)
+        try:
+            from app.services.alerts import AlertService
+            alerts = AlertService.get_all_alerts(db)
+        except Exception:
+            alerts = []
+        return {
+            "timestamp": datetime.utcnow().isoformat(),
+            "failed_logins": failed_logins,
+            "forbidden_access": forbidden_access,
+            "audit_summary": audit_summary,
+            "alerts": alerts,
+            "period_hours": hours
+        }
     
     @staticmethod
     def get_active_users_count(db: Session, role: Optional[str] = None) -> int:

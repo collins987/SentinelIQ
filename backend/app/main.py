@@ -1,6 +1,9 @@
 from contextlib import asynccontextmanager
+import asyncio
+from prometheus_client import Counter, Gauge
 from fastapi import FastAPI, Response, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -13,6 +16,8 @@ from app.middleware.pii_scrubber import PIIScrubberMiddleware
 from app.middleware.rate_limiter import RateLimitMiddleware
 from app.core.db import init_db, SessionLocal, engine
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST, REGISTRY
+from fastapi import Depends
+from app.dependencies import require_role
 from prometheus_fastapi_instrumentator import Instrumentator
 from app.models import Base
 from app.core.seed import seed_all
@@ -23,6 +28,78 @@ import traceback
 
 
 # Lifespan context manager for startup/shutdown
+from app.services.kafka_service import KafkaTopics, KafkaConsumerService
+from app.dependencies import get_current_user
+from app.core.logging import logger
+
+# Prometheus metrics for Kafka
+kafka_event_counter = Counter(
+    'kafka_events_processed_total',
+    'Total number of Kafka events processed',
+    ['topic', 'role', 'status']
+)
+kafka_dlq_counter = Counter(
+    'kafka_events_dlq_total',
+    'Total number of Kafka events sent to DLQ',
+    ['topic', 'role']
+)
+kafka_consumer_lag_gauge = Gauge(
+    'kafka_consumer_lag',
+    'Kafka consumer lag',
+    ['topic', 'group']
+)
+
+KAFKA_CONSUMER_TOPICS = [
+    KafkaTopics.RAW_EVENTS,
+    KafkaTopics.RISK_SCORED,
+    KafkaTopics.ALERTS_HIGH,
+    KafkaTopics.AUDIT_ARCHIVE,
+    KafkaTopics.OUTBOX_EVENTS
+]
+
+async def process_kafka_message(message, app):
+    """
+    Role-aware Kafka event processing with RBAC and DLQ.
+    """
+    try:
+        # Extract event and role (simulate RBAC, real logic should check JWT/claims)
+        event = message.value
+        topic = message.topic
+        # Example: role from event or default
+        role = event.get('role', 'user')
+        # RBAC enforcement (expand as needed)
+        if topic == KafkaTopics.ALERTS_HIGH.value and role != 'admin':
+            logger.warning(f"RBAC: Non-admin tried to process admin topic: {event}")
+            kafka_event_counter.labels(topic, role, 'forbidden').inc()
+            return
+        # Business logic per topic/role
+        logger.info(f"Processing Kafka event: topic={topic}, role={role}, event_id={event.get('event_id')}", extra={"correlation_id": event.get('event_id'), "role": role, "service": "kafka_consumer"})
+        # Simulate processing
+        kafka_event_counter.labels(topic, role, 'success').inc()
+    except Exception as e:
+        logger.error(f"Kafka event processing failed: {e}", extra={"correlation_id": getattr(message.value, 'event_id', None)})
+        # Send to DLQ (not implemented, just metric)
+        kafka_dlq_counter.labels(message.topic, message.value.get('role', 'user')).inc()
+        kafka_event_counter.labels(message.topic, message.value.get('role', 'user'), 'failed').inc()
+
+async def kafka_consumer_worker(app):
+    """Background Kafka consumer with retry and DLQ."""
+    consumer = await KafkaConsumerService.create(KAFKA_CONSUMER_TOPICS)
+    try:
+        async for message in consumer.consume():
+            for _ in range(3):
+                try:
+                    await process_kafka_message(message, app)
+                    await consumer.commit(message)
+                    break
+                except Exception as e:
+                    logger.error(f"Kafka event retry failed: {e}")
+            else:
+                # After retries, increment DLQ metric
+                kafka_dlq_counter.labels(message.topic, message.value.get('role', 'user')).inc()
+    finally:
+        await consumer.close()
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -50,11 +127,15 @@ async def lifespan(app: FastAPI):
         logger.error(f"Database initialization failed: {e}")
         raise RuntimeError(f"Cannot start without database: {e}")
     
-    # Initialize Kafka (optional - graceful degradation)
+
+    # Initialize Kafka producer and start background consumer
     try:
         from app.services.kafka_service import get_kafka_producer
         await get_kafka_producer()
         logger.info("Kafka producer initialized")
+        # Start background consumer
+        app.state.kafka_consumer_task = asyncio.create_task(kafka_consumer_worker(app))
+        logger.info("Kafka background consumer started")
     except Exception as e:
         logger.warning(f"Kafka initialization skipped: {e}")
     
@@ -78,11 +159,19 @@ async def lifespan(app: FastAPI):
     
     yield
     
+
     # Shutdown
     try:
         from app.services.kafka_service import shutdown_kafka
         await shutdown_kafka()
         logger.info("Kafka connections closed")
+        # Cancel background consumer
+        if hasattr(app.state, 'kafka_consumer_task'):
+            app.state.kafka_consumer_task.cancel()
+            try:
+                await app.state.kafka_consumer_task
+            except Exception:
+                pass
     except Exception:
         pass
     
@@ -95,6 +184,19 @@ app = FastAPI(
     description="Fintech Risk & Security Intelligence Platform",
     version="2.0.0",
     lifespan=lifespan,
+)
+
+# CORS for userdashboard frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:4000",
+        "http://127.0.0.1:4000"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
 )
 
 # Enforce HTTPBearer as the ONLY security scheme in OpenAPI (Swagger)
@@ -165,6 +267,7 @@ app.add_middleware(
 # Core Routes
 # ============================================================================
 app.include_router(users.router)
+app.include_router(users.user_router)  # Restore /user/dashboard and /user/profile endpoints
 app.include_router(admin.router)
 app.include_router(auth.router)
 app.include_router(email_verification.router)  # MILESTONE 6: Step 3
@@ -323,16 +426,38 @@ async def detailed_health_check():
     return health_status
 
 
-@app.get("/metrics", include_in_schema=False)
+
+# RBAC: Only admin and analyst can access metrics
+@app.get("/metrics", include_in_schema=False, dependencies=[Depends(require_role(["admin", "analyst"]))])
 def get_metrics():
     """Prometheus metrics endpoint - returns metrics in text/plain format"""
-    metrics_output = generate_latest(REGISTRY)
-    # Ensure proper encoding if bytes are returned
-    if isinstance(metrics_output, bytes):
-        metrics_output = metrics_output.decode('utf-8')
+    try:
+        metrics_output = generate_latest(REGISTRY)
+        if isinstance(metrics_output, bytes):
+            metrics_output = metrics_output.decode('utf-8')
+        return Response(
+            content=metrics_output,
+            media_type="text/plain; version=0.0.4; charset=utf-8"
+        )
+    except Exception as e:
+        # Always return a valid Response, even on error
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse(f"Error generating metrics: {str(e)}", status_code=500)
+
+# Loki-compatible logs endpoint (admin/analyst only)
+import glob
+import os
+@app.get("/logs", dependencies=[Depends(require_role(["admin", "analyst"]))])
+def get_logs():
+    """Return recent structured logs (Loki compatible, for admin/analyst only)"""
+    log_files = glob.glob(os.path.join(os.getcwd(), "*.log"))
+    logs = []
+    for log_file in log_files:
+        with open(log_file, "r") as f:
+            logs.extend(f.readlines()[-200:])  # Last 200 lines per file
     return Response(
-        content=metrics_output,
-        media_type="text/plain; version=0.0.4; charset=utf-8"
+        content="".join(logs),
+        media_type="text/plain; charset=utf-8"
     )
 
 

@@ -25,7 +25,7 @@ export default function HealthStatusCard({ health, error }: HealthStatusCardProp
       </div>
     );
   }
-  
+
   if (!health) {
     return (
       <div className="card">
@@ -36,6 +36,10 @@ export default function HealthStatusCard({ health, error }: HealthStatusCardProp
       </div>
     );
   }
+
+  // Check Vault status for special display
+  const vaultStatus = health.services?.vault?.status;
+  const isVaultNotConfigured = vaultStatus === 'not_configured';
   
   const statusConfig = {
     healthy: {
@@ -76,7 +80,15 @@ export default function HealthStatusCard({ health, error }: HealthStatusCardProp
           {formatPercent(health.overall_health_percent, 0)}
         </span>
       </div>
-      
+
+      {/* Vault Not Configured Banner */}
+      {isVaultNotConfigured && (
+        <div className="p-4 mb-4 rounded-lg bg-yellow-500/10 border border-yellow-400 flex items-center gap-3 animate-pulse">
+          <svg className="h-6 w-6 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          <span className="text-yellow-400 font-semibold">Vault is <span className="uppercase">not configured</span>. Secrets management is disabled.</span>
+        </div>
+      )}
+
       {/* Overall Status */}
       <div className={clsx('p-4 rounded-lg mb-4', config.bg)}>
         <div className="flex items-center gap-3">
@@ -84,11 +96,11 @@ export default function HealthStatusCard({ health, error }: HealthStatusCardProp
           <span className={clsx('font-medium', config.color)}>{config.label}</span>
         </div>
       </div>
-      
+
       {/* Services Grid */}
       <div className="grid grid-cols-2 gap-3">
         {Object.entries(health.services).map(([name, service]) => (
-          <ServiceStatusItem key={name} name={name} service={service} />
+          <ServiceStatusItem key={name} name={name} service={service} highlight={name === 'vault' && isVaultNotConfigured} />
         ))}
       </div>
     </div>
@@ -102,14 +114,18 @@ interface ServiceStatusItemProps {
     latency_ms?: number;
     error?: string;
   };
+  highlight?: boolean;
 }
 
-function ServiceStatusItem({ name, service }: ServiceStatusItemProps) {
+function ServiceStatusItem({ name, service, highlight }: ServiceStatusItemProps) {
   const isHealthy = service.status === 'healthy';
   const isUnavailable = service.status === 'not_configured' || service.status === 'unavailable';
-  
+
   return (
-    <div className="flex items-center justify-between p-3 rounded-lg bg-dashboard-bg">
+    <div className={clsx(
+      'flex items-center justify-between p-3 rounded-lg bg-dashboard-bg',
+      highlight && 'border-2 border-yellow-400 bg-yellow-500/10 animate-pulse'
+    )}>
       <div className="flex items-center gap-2">
         <span
           className={clsx(
@@ -119,7 +135,9 @@ function ServiceStatusItem({ name, service }: ServiceStatusItemProps) {
             !isHealthy && !isUnavailable && 'bg-yellow-500 animate-pulse'
           )}
         />
-        <span className="text-sm font-medium text-gray-300 capitalize">{name}</span>
+        <span className={clsx(
+          'text-sm font-medium capitalize',
+          highlight ? 'text-yellow-400' : 'text-gray-300')}>{name}</span>
       </div>
       <div className="text-right">
         <span
@@ -127,7 +145,8 @@ function ServiceStatusItem({ name, service }: ServiceStatusItemProps) {
             'text-xs',
             isHealthy && 'text-green-400',
             isUnavailable && 'text-gray-500',
-            !isHealthy && !isUnavailable && 'text-yellow-400'
+            !isHealthy && !isUnavailable && 'text-yellow-400',
+            highlight && 'font-bold text-yellow-400'
           )}
         >
           {service.status}

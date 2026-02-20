@@ -72,10 +72,66 @@ def disable_user(user_id: str, current_admin: User = Depends(require_admin), db:
     user.is_active = False
     user.updated_at = datetime.utcnow()
     db.commit()
-    
+
     # SECURITY: Revoke all tokens (immediate enforcement)
     revoke_all_user_tokens(user_id, db)
-    
+
+    # Vault: Crypto-shred user keys (GDPR)
+    try:
+        from app.core.vault_client import get_vault_client
+        vault = get_vault_client()
+        vault.crypto_shred_user(user_id)
+        logger.info(f"Crypto-shredded keys for user {user_id}")
+    except Exception as e:
+        logger.error(f"Vault crypto-shred failed for user {user_id}: {e}")
+
+    # Kafka: Publish user disabled event
+    try:
+        from app.services.kafka_service import publish_event, KafkaTopics
+        import asyncio
+        asyncio.create_task(publish_event(KafkaTopics.ALERTS_HIGH, {
+            "event_id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "action": "user_disabled",
+            "admin_id": current_admin.id,
+            "timestamp": datetime.utcnow().isoformat(),
+            "role": "admin"
+        }, key=user_id))
+    except Exception as e:
+        logger.error(f"Kafka publish failed for user_disabled: {e}")
+
+    # Redis: Publish to alert stream
+    try:
+        from app.services.redis_stream import get_redis_stream_manager
+        redis_manager = get_redis_stream_manager()
+        redis_manager.add_event({
+            "event_id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "action": "user_disabled",
+            "admin_id": current_admin.id,
+            "timestamp": datetime.utcnow().isoformat(),
+            "role": "admin"
+        }, stream=redis_manager.alert_stream)
+    except Exception as e:
+        logger.error(f"Redis publish failed for user_disabled: {e}")
+
+    # Email: Send notification to user
+    try:
+        from app.services.email_service import queue_email, start_email_worker
+        import asyncio
+        start_email_worker()
+        asyncio.create_task(queue_email(
+            to=user.email,
+            subject="Your account has been disabled",
+            html_content=f"<p>Dear {user.first_name},<br>Your account has been disabled by an administrator for security reasons. If you believe this is a mistake, please contact support.</p>",
+            template="account_disabled.html",
+            user_id=user_id,
+            role="user",
+            action="account_disabled"
+        ))
+    except Exception as e:
+        logger.error(f"Email notification failed for user_disabled: {e}")
+
     # Audit log
     audit = AuditLog(
         id=str(uuid.uuid4()),
@@ -87,7 +143,7 @@ def disable_user(user_id: str, current_admin: User = Depends(require_admin), db:
     )
     db.add(audit)
     db.commit()
-    
+
     return {"msg": f"User {user.email} has been disabled"}
 
 

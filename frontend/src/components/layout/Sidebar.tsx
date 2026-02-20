@@ -8,8 +8,9 @@ import {
   ServerIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  UserCircleIcon,
 } from '@heroicons/react/24/outline';
-import { useAppDispatch } from '../../store/hooks';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { toggleSidebar } from '../../features/dashboardSlice';
 import clsx from 'clsx';
 
@@ -17,7 +18,8 @@ interface SidebarProps {
   collapsed: boolean;
 }
 
-const navigation = [
+// Admin navigation items
+const adminNavigation = [
   { name: 'Overview', href: '/overview', icon: HomeIcon },
   { name: 'Users', href: '/users', icon: UsersIcon },
   { name: 'Risk Center', href: '/risk', icon: ShieldExclamationIcon },
@@ -26,8 +28,17 @@ const navigation = [
   { name: 'System Health', href: '/health', icon: ServerIcon },
 ];
 
+// User navigation items
+const userNavigation = [
+  { name: 'My Dashboard', href: '/my-dashboard', icon: UserCircleIcon },
+];
+
 export default function Sidebar({ collapsed }: SidebarProps) {
   const dispatch = useAppDispatch();
+  const { user } = useAppSelector((state) => state.auth);
+  
+  // Select navigation based on user role
+  const navigation = user?.role === 'admin' ? adminNavigation : userNavigation;
   
   return (
     <aside

@@ -4,6 +4,24 @@ import { useAppDispatch } from '../store/hooks';
 import { setCredentials, setLoading } from '../features/authSlice';
 import { ShieldCheckIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 
+/**
+ * Decode JWT token payload (base64url decoding)
+ */
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = parts[1];
+    // Base64url to Base64
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    // Decode
+    const decoded = atob(base64);
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+}
+
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -20,6 +38,7 @@ export default function Login() {
     dispatch(setLoading(true));
     
     try {
+      // Use the correct backend endpoint /auth/login via /api proxy
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
@@ -31,23 +50,42 @@ export default function Login() {
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.detail || 'Login failed');
+        throw new Error(data.detail || 'Invalid email or password');
       }
       
-      // Check if user is admin
-      if (data.user.role !== 'admin') {
-        throw new Error('Admin access required. Contact your administrator.');
+      // The /auth/login endpoint returns user info directly
+      const user = data.user || {
+        id: '',
+        email: email,
+        first_name: email.split('@')[0],
+        last_name: '',
+        role: 'viewer',
+      };
+      
+      // Fallback: If user info not in response, decode JWT
+      if (!data.user && data.access_token) {
+        const tokenPayload = decodeJwtPayload(data.access_token);
+        if (tokenPayload) {
+          user.id = (tokenPayload.sub as string) || '';
+          user.role = (tokenPayload.role as string) || 'viewer';
+          user.email = (tokenPayload.email as string) || email;
+        }
       }
       
       dispatch(setCredentials({
         token: data.access_token,
-        refreshToken: data.refresh_token,
-        user: data.user,
+        refreshToken: data.refresh_token || '',
+        user: user,
       }));
       
-      navigate('/overview');
+      // Route based on user role
+      if (user.role === 'admin') {
+        navigate('/overview');
+      } else {
+        navigate('/my-dashboard');
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setError(err instanceof Error ? err.message : 'An error occurred during login');
     } finally {
       setIsLoading(false);
       dispatch(setLoading(false));
@@ -63,7 +101,7 @@ export default function Login() {
             <ShieldCheckIcon className="w-10 h-10 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-white">SentinelIQ</h1>
-          <p className="text-gray-400 mt-2">Admin Dashboard</p>
+          <p className="text-gray-400 mt-2">Security Dashboard</p>
         </div>
         
         {/* Login Form Card */}
@@ -93,7 +131,7 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="input"
-                placeholder="admin@sentineliq.com"
+                placeholder="you@example.com"
               />
             </div>
             
@@ -141,9 +179,10 @@ export default function Login() {
         {/* Demo credentials hint */}
         <div className="mt-6 p-4 rounded-lg bg-sentinel-500/10 border border-sentinel-500/30">
           <p className="text-sm text-sentinel-400 text-center">
-            <strong>Admin Credentials:</strong><br />
-            Email: admin@sentineliq.local<br />
-            Password: Admin@SentinelIQ#2025
+            <strong>Demo Credentials:</strong><br />
+            Admin: admin@sentineliq.local / Admin@SentinelIQ#2025<br />
+            Test User: user@test.sentineliq.local / UserTest@123<br />
+            <span className="text-xs text-gray-500">(DEV_MODE must be enabled for test user)</span>
           </p>
         </div>
       </div>

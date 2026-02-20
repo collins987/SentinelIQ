@@ -1,0 +1,34 @@
+body {
+  margin: 0;
+  font-family: 'Inter', Arial, sans-serif;
+  background: #f7f8fa;
+  color: #222;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+
+.dashboard-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2.5rem 2.5rem 2.5rem 0;
+}
+
+.card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 600px) {
+  .dashboard-container {
+    padding: 1rem 0.25rem;
+  }
+  .card {
+    padding: 1rem;
+  }
+}

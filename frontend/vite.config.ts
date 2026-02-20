@@ -31,6 +31,18 @@ export default defineConfig({
         // Do NOT rewrite - backend expects /api/admin/dashboard/ws/events
       },
 
+      // User dashboard APIs - direct routes to backend
+      '/user': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+
+      // Users API routes (including /users/auth/login)
+      '/users': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+
       // All other backend APIs (e.g. /api/auth/login) keep the original
       // behavior: strip the /api prefix so FastAPI sees /auth/login, etc.
       '/api': {

@@ -648,13 +648,13 @@ async def get_risk_summary(
 
 @router.get("/risk/high-risk-users")
 async def get_high_risk_users(
-    threshold: int = Query(70, ge=0, le=100),
+    threshold: int = Query(10, ge=0, le=100),  # Lowered default to 10
     limit: int = Query(20, ge=1, le=100),
     current_user: User = Depends(require_role(["admin"])),
     db: Session = Depends(get_db)
 ):
     """
-    Get users with high risk scores.
+    Get users with high risk scores (threshold 10+).
     """
     users = db.query(User).filter(
         User.risk_score >= threshold
