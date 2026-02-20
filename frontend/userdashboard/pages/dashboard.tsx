@@ -85,31 +85,40 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#f7f8fa' }}>
-      <div style={{ margin: '32px 0 32px 32px' }}>
-        <SideNav onSelect={setSelectedNav} selected={selectedNav} />
-      </div>
-      <main className="dashboard-container" style={{ flex: 1, paddingLeft: 0, paddingRight: 0, maxWidth: 1200 }}>
+    <div className="dashboard-layout">
+      <SideNav onSelect={setSelectedNav} selected={selectedNav} />
+      <main className="dashboard-container">
         <DashboardHeader user={profile} onLogout={logout} />
+
         {loading ? (
-          <div className="card">Loading...</div>
+          <div className="loading-container">
+            <div className="loading-spinner" />
+            <div className="loading-text">Loading your dashboard...</div>
+          </div>
         ) : error ? (
-          <div className="card" style={{ color: 'red' }}>{error}</div>
+          <div className="error-container">{error}</div>
         ) : (
           <>
+            {/* Welcome Banner */}
+            <div className="welcome-banner">
+              <h1>Your Security Overview</h1>
+              <p>Everything looks good. Here&apos;s a summary of your account status and activity.</p>
+              <div className="welcome-meta">
+                <span>🛡️ {riskScores.length} risk factor{riskScores.length !== 1 ? 's' : ''} tracked</span>
+                <span>🕒 {session?.last_login_at ? `Last login: ${new Date(session.last_login_at).toLocaleDateString()}` : 'First session'}</span>
+                <span>🟢 {session?.active_sessions ?? 0} active session{(session?.active_sessions ?? 0) !== 1 ? 's' : ''}</span>
+              </div>
+            </div>
+
             <KPIBar stats={summaryCards} />
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: 24,
-              marginBottom: 32,
-            }}>
-              <div>
+
+            <div className="content-grid">
+              <div className="content-column">
                 {profile && <ProfileCard user={profile} />}
                 <SuggestionsList riskScores={riskScores} />
                 <ContactAdminForm />
               </div>
-              <div>
+              <div className="content-column">
                 <RiskScoreCard riskScores={riskScores} />
                 {activity && session && <UserActivityCard activity={activity} session={session} />}
               </div>

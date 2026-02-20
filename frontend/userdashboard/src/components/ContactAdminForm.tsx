@@ -21,25 +21,27 @@ export default function ContactAdminForm() {
   };
 
   return (
-    <div className="card" style={{ minHeight: 120 }}>
-      <h2 style={{ marginBottom: 14 }}>Contact Admin</h2>
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div className="card">
+      <h2>Contact Admin</h2>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <textarea
+          className="contact-textarea"
           value={message}
           onChange={e => setMessage(e.target.value)}
           placeholder="Describe your issue or question..."
           required
           rows={4}
-          style={{ width: '100%', borderRadius: 6, border: '1px solid #ccc', padding: 8, marginBottom: 0, fontSize: 15 }}
         />
-        <button type="submit" style={{ background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, padding: '10px 0', fontWeight: 600, fontSize: 16 }} disabled={status === 'loading'}>
-          {status === 'loading' ? 'Sending...' : 'Send'}
+        <button type="submit" className="btn-primary" disabled={status === 'loading'}>
+          {status === 'loading' ? 'Sending...' : 'Send Message'}
         </button>
-        {status === 'success' && <div style={{ color: 'green', marginTop: 4 }}>Message sent!</div>}
-        {status === 'error' && <div style={{ color: 'red', marginTop: 4 }}>Failed to send message.</div>}
+        {status === 'success' && <div className="status-success">✓ Message sent successfully!</div>}
+        {status === 'error' && <div className="status-error">✕ Failed to send message. Please try again.</div>}
       </form>
-      <div style={{ marginTop: 10 }}>
-        <a href={`mailto:admin@example.com?subject=Support Request from ${user?.email}`} style={{ color: '#2563eb', textDecoration: 'underline' }}>Or contact via email</a>
+      <div style={{ marginTop: 12 }}>
+        <a href={`mailto:admin@example.com?subject=Support Request from ${user?.email}`} className="contact-email-link">
+          ✉ Or contact via email
+        </a>
       </div>
     </div>
   );

@@ -1,14 +1,22 @@
 import React from 'react';
 
 export default function DashboardHeader({ user, onLogout }: { user: any, onLogout: () => void }) {
+  const firstName = user?.name?.split(' ')[0] || 'User';
+  const initials = user?.name
+    ? user.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
+    : 'U';
+
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-      <div>
-        <h1 style={{ fontWeight: 800, fontSize: 32, letterSpacing: -1, margin: 0 }}>Welcome, {user?.name?.split(' ')[0] || 'User'}!</h1>
-        <div style={{ color: '#888', fontWeight: 500, fontSize: 16 }}>{user?.email}</div>
+    <div className="dashboard-header">
+      <div className="header-user-info">
+        <div className="header-avatar">{initials}</div>
+        <div className="header-text">
+          <h1>Welcome back, {firstName}!</h1>
+          <p>{user?.email || 'Your security overview at a glance'}</p>
+        </div>
       </div>
-      <button onClick={onLogout} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 6, padding: '10px 22px', fontWeight: 600, fontSize: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-        Logout
+      <button onClick={onLogout} className="logout-btn">
+        <span>↗</span> Logout
       </button>
     </div>
   );

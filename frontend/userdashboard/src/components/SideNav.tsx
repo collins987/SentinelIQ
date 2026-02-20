@@ -10,63 +10,41 @@ const navItems = [
 
 export default function SideNav({ onSelect, selected }: { onSelect: (label: string) => void, selected: string }) {
   const [collapsed, setCollapsed] = useState(false);
+
   return (
-    <nav style={{
-      width: collapsed ? 60 : 200,
-      background: '#fff',
-      borderRadius: 16,
-      boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
-      padding: '18px 0',
-      minHeight: 500,
-      transition: 'width 0.2s',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: collapsed ? 'center' : 'flex-start',
-      position: 'sticky',
-      top: 32,
-      zIndex: 10,
-    }}>
+    <nav className={`sidebar${collapsed ? ' collapsed' : ''}`}>
+      {/* Logo */}
+      <div className="sidebar-logo">
+        <div className="sidebar-logo-icon">S</div>
+        {!collapsed && (
+          <div className="sidebar-logo-text">
+            Sentinel<span>IQ</span>
+          </div>
+        )}
+      </div>
+
+      {/* Toggle */}
       <button
         aria-label="Toggle navigation"
+        className="sidebar-toggle"
         onClick={() => setCollapsed(c => !c)}
-        style={{
-          background: 'none',
-          border: 'none',
-          color: '#2563eb',
-          fontSize: 22,
-          margin: collapsed ? '0 0 18px 0' : '0 0 18px 18px',
-          cursor: 'pointer',
-          alignSelf: collapsed ? 'center' : 'flex-start',
-        }}
       >
-        {collapsed ? '»' : '«'}
+        {collapsed ? '›' : '‹'}
       </button>
-      {navItems.map(item => (
-        <div
-          key={item.label}
-          onClick={() => onSelect(item.label)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            padding: collapsed ? '10px 0' : '10px 18px',
-            width: '100%',
-            cursor: 'pointer',
-            background: selected === item.label ? '#f3f4f6' : 'none',
-            fontWeight: selected === item.label ? 700 : 500,
-            color: selected === item.label ? '#2563eb' : '#222',
-            borderLeft: selected === item.label ? '4px solid #2563eb' : '4px solid transparent',
-            borderRadius: '0 8px 8px 0',
-            fontSize: 17,
-            transition: 'background 0.15s',
-            marginBottom: 2,
-            justifyContent: collapsed ? 'center' : 'flex-start',
-          }}
-        >
-          <span style={{ fontSize: 22 }}>{item.icon}</span>
-          {!collapsed && <span>{item.label}</span>}
-        </div>
-      ))}
+
+      {/* Nav Items */}
+      <div className="sidebar-nav">
+        {navItems.map(item => (
+          <button
+            key={item.label}
+            className={`sidebar-item${selected === item.label ? ' active' : ''}`}
+            onClick={() => onSelect(item.label)}
+          >
+            <span className="sidebar-item-icon">{item.icon}</span>
+            {!collapsed && <span>{item.label}</span>}
+          </button>
+        ))}
+      </div>
     </nav>
   );
 }

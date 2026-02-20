@@ -6,29 +6,41 @@ interface RiskScoreCardProps {
 
 export default function RiskScoreCard({ riskScores }: RiskScoreCardProps) {
   if (!riskScores || riskScores.length === 0) return (
-    <div className="card">No risk scores available.</div>
+    <div className="card">
+      <h2>Risk Scores</h2>
+      <div className="empty-state">No risk scores available.</div>
+    </div>
   );
+
+  const getScoreClass = (score: number) => {
+    if (score > 70) return 'high';
+    if (score > 40) return 'medium';
+    return 'low';
+  };
+
+  const getScoreColor = (score: number) => {
+    if (score > 70) return '#ef4444';
+    if (score > 40) return '#f59e0b';
+    return '#10b981';
+  };
+
   return (
-    <div className="card" style={{ minHeight: 140 }}>
-      <h2 style={{ marginBottom: 18 }}>Risk Scores</h2>
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: 16,
-      }}>
+    <div className="card">
+      <h2>Risk Scores</h2>
+      <div className="risk-grid">
         {riskScores.map(risk => (
-          <div key={risk.id} style={{
-            background: '#f7f8fa',
-            borderRadius: 8,
-            padding: 12,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-start',
-            minHeight: 70,
-          }}>
-            <span style={{ color: '#888', fontWeight: 500 }}>{risk.type}</span>
-            <span style={{ fontWeight: 700, fontSize: 20, color: risk.score > 70 ? '#ef4444' : risk.score > 40 ? '#f59e42' : '#22c55e' }}>{risk.score}</span>
-            <span style={{ fontSize: 13, color: '#888' }}>Score</span>
+          <div key={risk.id} className="risk-item">
+            <span className="risk-type">{risk.type}</span>
+            <span className={`risk-score ${getScoreClass(risk.score)}`}>{risk.score}</span>
+            <div className="risk-bar">
+              <div
+                className="risk-bar-fill"
+                style={{
+                  width: `${Math.min(risk.score, 100)}%`,
+                  background: getScoreColor(risk.score),
+                }}
+              />
+            </div>
           </div>
         ))}
       </div>
