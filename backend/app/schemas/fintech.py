@@ -173,6 +173,29 @@ class IncidentReportResponse(BaseModel):
 
 
 # ─────────────────────────────────────────────────────────────
+# Phone Verification
+# ─────────────────────────────────────────────────────────────
+
+class PhoneUpdateRequest(BaseModel):
+    phone: str = Field(..., min_length=7, max_length=20, description="Phone number (e.g. +254712345678)")
+
+
+class PhoneStatusResponse(BaseModel):
+    phone: Optional[str] = None
+    phone_verified: bool = False
+    message: str
+
+
+class PhoneVerifyRequest(BaseModel):
+    code: str = Field(..., min_length=6, max_length=6, description="6-digit verification code")
+
+
+class PhoneVerifyResponse(BaseModel):
+    verified: bool
+    message: str
+
+
+# ─────────────────────────────────────────────────────────────
 # User Dashboard (enhanced)
 # ─────────────────────────────────────────────────────────────
 

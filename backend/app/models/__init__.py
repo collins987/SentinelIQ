@@ -215,7 +215,13 @@ __all__ = [
     "LoanRepayment",
     "UserSession",
     "SecurityAlert",
+    "Investigation",
+    "InvestigationNote",
+    "Recommendation",
 ]
+
+# Import analyst models so they are registered
+from app.models.analyst import Investigation, InvestigationNote, Recommendation
 
 
 class UserAccessLog(Base):

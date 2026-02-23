@@ -114,7 +114,7 @@ export default function LoansCard() {
           <div className="activity-stat" style={{ flex: 1 }}>
             <div className="activity-stat-label">Outstanding</div>
             <div className="activity-stat-value" style={{ color: totalOutstanding > 0 ? 'var(--color-warning)' : undefined }}>
-              ${totalOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              Ksh.{totalOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </div>
           </div>
           <div className="activity-stat" style={{ flex: 1 }}>
@@ -129,7 +129,7 @@ export default function LoansCard() {
         <form onSubmit={handleApply} style={{ background: 'var(--color-bg)', borderRadius: 'var(--radius-md)', padding: 16, marginBottom: 16, border: '1px solid var(--color-border)' }}>
           <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Apply for a New Loan</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-            <input type="number" placeholder="Amount ($)" value={applyAmount} onChange={e => setApplyAmount(e.target.value)} required min={1} step="0.01" className="contact-textarea" style={{ resize: 'none', minHeight: 0, padding: '10px 12px' }} />
+            <input type="number" placeholder="Amount (Ksh.)" value={applyAmount} onChange={e => setApplyAmount(e.target.value)} required min={1} step="0.01" className="contact-textarea" style={{ resize: 'none', minHeight: 0, padding: '10px 12px' }} />
             <input type="number" placeholder="Term (months)" value={applyTerm} onChange={e => setApplyTerm(e.target.value)} min={1} max={360} className="contact-textarea" style={{ resize: 'none', minHeight: 0, padding: '10px 12px' }} />
           </div>
           <input type="text" placeholder="Purpose (optional)" value={applyPurpose} onChange={e => setApplyPurpose(e.target.value)} className="contact-textarea" style={{ resize: 'none', minHeight: 0, padding: '10px 12px', marginBottom: 10 }} />
@@ -160,7 +160,7 @@ export default function LoansCard() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)' }}>
-                    ${Number(loan.principal).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    Ksh.{Number(loan.principal).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </span>
                   {getStatusBadge(loan.status)}
                 </div>
@@ -172,7 +172,7 @@ export default function LoansCard() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
                 <span style={{ color: 'var(--color-text-secondary)' }}>
                   Outstanding: <b style={{ color: Number(loan.outstanding) > 0 ? 'var(--color-warning)' : 'var(--color-success)' }}>
-                    ${Number(loan.outstanding).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    Ksh.{Number(loan.outstanding).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </b>
                 </span>
                 {loan.next_due_date && (

@@ -20,7 +20,11 @@ import SessionsCard from '../src/components/SessionsCard';
 import MFASetupCard from '../src/components/MFASetupCard';
 import SecurityAlertsCard from '../src/components/SecurityAlertsCard';
 import IncidentReportForm from '../src/components/IncidentReportForm';
+import PhoneVerificationCard from '../src/components/PhoneVerificationCard';
 import CoreObjectivesGraphs from '../src/components/CoreObjectivesGraphs';
+import AccountCompletionTracker from '../src/components/AccountCompletionTracker';
+import QuickActions from '../src/components/QuickActions';
+import LoanDueReminder from '../src/components/LoanDueReminder';
 
 export default function DashboardPage() {
   const { user, token, logout } = useUser();
@@ -113,6 +117,7 @@ export default function DashboardPage() {
       case 'Security':
         return (
           <>
+            <PhoneVerificationCard />
             <MFASetupCard />
             <SecurityAlertsCard />
             <IncidentReportForm />
@@ -145,6 +150,9 @@ export default function DashboardPage() {
           <>
             <KPIBar stats={summaryCards} />
 
+            {/* Loan due reminder banner */}
+            <LoanDueReminder loansSummary={loansSummary} onNavigate={setSelectedNav} />
+
             {/* Alerts banner — editorial inline notice */}
             {(alertsSummary?.unread ?? 0) > 0 && (
               <div className="alert-banner-editorial">
@@ -157,6 +165,14 @@ export default function DashboardPage() {
                 </button>
               </div>
             )}
+
+            {/* Quick Actions */}
+            <QuickActions
+              profile={profile}
+              loansSummary={loansSummary}
+              alertsSummary={alertsSummary}
+              onNavigate={setSelectedNav}
+            />
 
             {/* Core Objectives Circular Graphs */}
             <CoreObjectivesGraphs
@@ -171,6 +187,7 @@ export default function DashboardPage() {
             <div className="content-grid">
               <div className="content-column">
                 {profile && <ProfileCard user={profile} />}
+                <AccountCompletionTracker profile={profile} onNavigate={setSelectedNav} />
                 {riskBreakdown && (
                   <RiskBreakdownCard
                     breakdown={riskBreakdown}
@@ -179,7 +196,6 @@ export default function DashboardPage() {
                   />
                 )}
                 <SuggestionsList riskScores={riskScores} />
-                <MFASetupCard />
                 <ContactAdminForm />
               </div>
               <div className="content-column">
@@ -212,13 +228,23 @@ export default function DashboardPage() {
           <>
             {/* Welcome Banner — Editorial Style */}
             <div className="welcome-banner">
-              <h1>Welcome back,<br /><em>{profile?.name?.split(' ')[0] || 'there'}.</em></h1>
+              <h1>{ (() => {
+                const hour = new Date().getHours();
+                const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+                return <>{greeting},<br /><em>{profile?.first_name || profile?.name?.split(' ')[0] || 'there'}.</em></>;
+              })() }</h1>
               <div className="welcome-meta">
                 <span>🕒 {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
                 <div className="meta-divider" style={{ width: 1, height: 14, background: 'var(--color-border)', display: 'inline-block' }}></div>
                 <span>🛡️ {riskScores.length} risk factor{riskScores.length !== 1 ? 's' : ''} tracked</span>
                 <div className="meta-divider" style={{ width: 1, height: 14, background: 'var(--color-border)', display: 'inline-block' }}></div>
                 <span>🟢 {session?.active_sessions ?? 0} active session{(session?.active_sessions ?? 0) !== 1 ? 's' : ''}</span>
+                {session?.last_login_at && (
+                  <>
+                    <div className="meta-divider" style={{ width: 1, height: 14, background: 'var(--color-border)', display: 'inline-block' }}></div>
+                    <span>🕐 Last login: {new Date(session.last_login_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                  </>
+                )}
                 {trustLevel !== 'unknown' && (
                   <>
                     <div className="meta-divider" style={{ width: 1, height: 14, background: 'var(--color-border)', display: 'inline-block' }}></div>

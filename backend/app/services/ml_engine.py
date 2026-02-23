@@ -53,7 +53,7 @@ class FeatureConfig:
 FEATURE_DEFINITIONS = [
     FeatureConfig(
         name="amount",
-        description="Transaction amount in dollars",
+        description="Transaction amount in Kenyan shillings",
         dtype="numeric",
         default_value=0,
         min_value=0,

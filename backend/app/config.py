@@ -96,7 +96,7 @@ ROLES = {
         ]
     },
     "analyst": {
-        "description": "Data analysis access - view user profiles with metadata, read/write analysis",
+        "description": "Risk investigation & monitoring - investigate users, manage cases, recommend actions",
         "permissions": [
             # Analytics
             "analytics.read",
@@ -110,6 +110,14 @@ ROLES = {
             "users.read_global",      # View system users with metadata
             "users.read_public",      # View public user profiles
             "users.read_metadata",    # Can see user metadata (login info, risk score)
+            # Analyst investigation permissions
+            "analyst.view_alerts",       # View alert feed
+            "analyst.inspect_users",     # Full user inspection (risk, timeline, devices)
+            "analyst.manage_investigations",  # Create, update, close investigations
+            "analyst.add_notes",         # Add investigation notes
+            "analyst.recommend_actions", # Recommend enforcement actions (no direct enforcement)
+            "analyst.view_risk_insights",  # Risk distribution & insights
+            "analyst.search",            # Cross-entity search
         ]
     },
     "viewer": {

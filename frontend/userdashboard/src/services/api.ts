@@ -234,6 +234,36 @@ export async function reportIncident(data: { incident_type: string; description:
   return res.data;
 }
 
+// ─── Phone Verification ────────────────────────────────────
+
+export async function getPhoneStatus(token: string): Promise<{ phone: string | null; phone_verified: boolean; message: string }> {
+  const res = await axios.get(`${API_V1}/users/me/phone/status`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.data;
+}
+
+export async function updatePhone(phone: string, token: string): Promise<{ phone: string | null; phone_verified: boolean; message: string }> {
+  const res = await axios.post(`${API_V1}/users/me/phone/update`, { phone }, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.data;
+}
+
+export async function verifyPhone(code: string, token: string): Promise<{ verified: boolean; message: string }> {
+  const res = await axios.post(`${API_V1}/users/me/phone/verify`, { code }, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.data;
+}
+
+export async function resendPhoneCode(token: string): Promise<{ phone: string | null; phone_verified: boolean; message: string }> {
+  const res = await axios.post(`${API_V1}/users/me/phone/resend-code`, {}, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.data;
+}
+
 // ─── Support ────────────────────────────────────────────────
 
 export async function submitSupportTicket(ticket: SupportTicket, token: string): Promise<{ success: boolean }> {

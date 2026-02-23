@@ -34,6 +34,7 @@ from app.schemas.fintech import (
     MFADisableRequest, MFAStatusResponse,
     AlertOut, AlertListResponse,
     IncidentReportRequest, IncidentReportResponse,
+    PhoneUpdateRequest, PhoneStatusResponse, PhoneVerifyRequest, PhoneVerifyResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -393,7 +394,7 @@ async def apply_for_loan(
         "status": loan.status,
         "auto_approved": auto_approve,
         "risk_impact": 20,
-        "detail": f"Loan application for ${body.amount}",
+        "detail": f"Loan application for Ksh.{body.amount}",
     })
 
     db.commit()
@@ -472,7 +473,7 @@ async def repay_loan(
         "is_late": is_late,
         "remaining": float(loan.outstanding),
         "risk_impact": risk_impact,
-        "detail": f"{'Late' if is_late else 'On-time'} repayment of ${body.amount} on loan #{loan.id[:8]}",
+        "detail": f"{'Late' if is_late else 'On-time'} repayment of Ksh.{body.amount} on loan #{loan.id[:8]}",
     })
 
     # Update user financial risk
@@ -646,6 +647,184 @@ async def disable_mfa(
     db.commit()
 
     return MFAStatusResponse(mfa_enabled=False, message="MFA disabled. Your identity risk has increased.")
+
+
+# ─────────────────────────────────────────────────────────────
+# PHONE VERIFICATION ENDPOINTS
+# ─────────────────────────────────────────────────────────────
+
+@router.get("/phone/status", response_model=PhoneStatusResponse)
+async def phone_status(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Check phone status for the current user."""
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return PhoneStatusResponse(
+        phone=user.phone,
+        phone_verified=user.phone_verified or False,
+        message="Phone is verified" if user.phone_verified else (
+            "Phone number set but not verified" if user.phone else "No phone number on file"
+        ),
+    )
+
+
+@router.post("/phone/update", response_model=PhoneStatusResponse)
+async def update_phone(
+    body: PhoneUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Set or update the user's phone number.
+    A 6-digit verification code is generated and stored for later verification.
+    In production, this code would be sent via SMS.
+    """
+    import re
+    import random
+
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Basic phone number validation (digits, optional + prefix, 7-15 digits)
+    cleaned = re.sub(r'[\s\-\(\)]', '', body.phone)
+    if not re.match(r'^\+?\d{7,15}$', cleaned):
+        raise HTTPException(status_code=400, detail="Invalid phone number format. Use international format e.g. +254712345678")
+
+    # Generate a 6-digit verification code
+    verification_code = f"{random.randint(100000, 999999)}"
+
+    user.phone = cleaned
+    user.phone_verified = False
+    # Store the verification code in user_metadata (in production: send via SMS)
+    metadata = user.user_metadata or {}
+    metadata["phone_verification_code"] = verification_code
+    metadata["phone_verification_expires"] = (datetime.utcnow() + timedelta(minutes=10)).isoformat()
+    user.user_metadata = metadata
+    user.updated_at = datetime.utcnow()
+
+    _audit_log(db, user.id, "phone_updated", metadata={
+        "detail": "Phone number updated, verification pending",
+    })
+
+    db.commit()
+
+    logger.info(f"Phone verification code for user {user.id}: {verification_code}")
+
+    return PhoneStatusResponse(
+        phone=user.phone,
+        phone_verified=False,
+        message=f"Phone number updated. Verification code: {verification_code} (valid for 10 minutes)",
+    )
+
+
+@router.post("/phone/verify", response_model=PhoneVerifyResponse)
+async def verify_phone(
+    body: PhoneVerifyRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Verify the phone number using the 6-digit code.
+    Reduces identity risk by 15 points upon successful verification.
+    """
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if not user.phone:
+        raise HTTPException(status_code=400, detail="No phone number to verify. Set a phone number first.")
+
+    if user.phone_verified:
+        return PhoneVerifyResponse(verified=True, message="Phone is already verified")
+
+    metadata = user.user_metadata or {}
+    stored_code = metadata.get("phone_verification_code")
+    expires_str = metadata.get("phone_verification_expires")
+
+    if not stored_code or not expires_str:
+        raise HTTPException(status_code=400, detail="No verification code found. Request a new one by updating your phone number.")
+
+    # Check expiration
+    try:
+        expires_at = datetime.fromisoformat(expires_str)
+        if datetime.utcnow() > expires_at:
+            raise HTTPException(status_code=400, detail="Verification code expired. Request a new one by updating your phone number.")
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid verification state. Request a new code.")
+
+    if body.code != stored_code:
+        raise HTTPException(status_code=400, detail="Invalid verification code")
+
+    # Mark phone as verified
+    user.phone_verified = True
+    user.updated_at = datetime.utcnow()
+
+    # Clean up verification metadata
+    metadata.pop("phone_verification_code", None)
+    metadata.pop("phone_verification_expires", None)
+    user.user_metadata = metadata
+
+    # Update risk: phone verification reduces identity risk by 15
+    breakdown = user.risk_breakdown or {"identity": 0, "behavior": 0, "financial": 0, "compliance": 0}
+    breakdown["identity"] = max(0, breakdown.get("identity", 0) - 15)
+    user.risk_breakdown = breakdown
+    user.risk_score = sum(breakdown.values())
+    user.trust_level = _compute_trust_level(user.risk_score)
+
+    _audit_log(db, user.id, "phone_verified", metadata={
+        "risk_impact": -15,
+        "detail": "Phone number verified successfully",
+    })
+
+    db.commit()
+
+    return PhoneVerifyResponse(verified=True, message="Phone verified successfully. Your identity risk has decreased.")
+
+
+@router.post("/phone/resend-code", response_model=PhoneStatusResponse)
+async def resend_phone_code(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Resend a new verification code for the current phone number."""
+    import random
+
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if not user.phone:
+        raise HTTPException(status_code=400, detail="No phone number on file. Set a phone number first.")
+
+    if user.phone_verified:
+        return PhoneStatusResponse(
+            phone=user.phone,
+            phone_verified=True,
+            message="Phone is already verified",
+        )
+
+    verification_code = f"{random.randint(100000, 999999)}"
+
+    metadata = user.user_metadata or {}
+    metadata["phone_verification_code"] = verification_code
+    metadata["phone_verification_expires"] = (datetime.utcnow() + timedelta(minutes=10)).isoformat()
+    user.user_metadata = metadata
+    user.updated_at = datetime.utcnow()
+
+    db.commit()
+
+    logger.info(f"Phone verification code resent for user {user.id}: {verification_code}")
+
+    return PhoneStatusResponse(
+        phone=user.phone,
+        phone_verified=False,
+        message=f"New verification code: {verification_code} (valid for 10 minutes)",
+    )
 
 
 # ─────────────────────────────────────────────────────────────

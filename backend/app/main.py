@@ -11,6 +11,7 @@ from sqlalchemy import text
 from app.api import auth
 from app.routes import users, admin, email_verification, password_reset, analytics, events, dashboard, dashboard_ws
 from app.routes.user_api import router as user_api_router
+from app.routes.analyst import router as analyst_router
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.request_logging import RequestLoggingMiddleware, UserTrackingMiddleware
 from app.middleware.pii_scrubber import PIIScrubberMiddleware
@@ -21,6 +22,7 @@ from fastapi import Depends
 from app.dependencies import require_role
 from prometheus_fastapi_instrumentator import Instrumentator
 from app.models import Base
+import app.models.analyst  # Register analyst models for create_all
 from app.core.seed import seed_all
 from app.core.logging import logger
 from app.services.graph_service import router as graph_router
@@ -193,7 +195,9 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "http://localhost:4000",
-        "http://127.0.0.1:4000"
+        "http://127.0.0.1:4000",
+        "http://localhost:4100",
+        "http://127.0.0.1:4100",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -287,6 +291,7 @@ app.include_router(
 app.include_router(graph_router)  # Graph visualization API
 app.include_router(message_router)  # Secure message center
 app.include_router(user_api_router)  # User fintech API (loans, sessions, MFA, risk, alerts)
+app.include_router(analyst_router)  # Analyst investigation & risk module
 
 init_db()
 

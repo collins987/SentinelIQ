@@ -67,12 +67,17 @@ def get_user_dashboard_root(current_user: User = Depends(get_current_user), db: 
     profile = {
         "id": current_user.id,
         "name": f"{current_user.first_name} {current_user.last_name}",
+        "first_name": current_user.first_name,
+        "last_name": current_user.last_name,
         "email": current_user.email,
         "role": current_user.role,
         "mfa_enabled": getattr(current_user, "mfa_enabled", False),
         "trust_level": getattr(current_user, "trust_level", "unknown"),
         "phone": getattr(current_user, "phone", None),
+        "phone_verified": getattr(current_user, "phone_verified", False),
         "email_verified": getattr(current_user, "email_verified", False),
+        "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
+        "last_login_at": current_user.last_login_at.isoformat() if current_user.last_login_at else None,
     }
 
     # Risk scores with domain breakdown

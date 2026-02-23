@@ -1,7 +1,7 @@
 import React from 'react';
 
 // ─────────────────────────────────────────────────────────────
-// Pure SVG Circular (Doughnut) Graph Component
+// SOC-Style Circular Gauge Component — Professional Threat Dashboard Aesthetic
 // ─────────────────────────────────────────────────────────────
 
 interface CircularGraphProps {
@@ -24,78 +24,168 @@ function CircularGraph({
   label,
   color,
   subtitle,
-  size = 140,
-  strokeWidth = 12,
+  size = 170,
+  strokeWidth = 10,
 }: CircularGraphProps) {
-  const radius = (size - strokeWidth) / 2;
+  const radius = (size - strokeWidth) / 2 - 12;
   const circumference = 2 * Math.PI * radius;
   const clamped = Math.max(0, Math.min(100, value));
   const offset = circumference - (clamped / 100) * circumference;
   const center = size / 2;
 
-  // Glow filter id unique per label
-  const filterId = `glow-${label.replace(/\s/g, '')}`;
+  // Outer decorative ring
+  const outerRadius = radius + 8;
+  const innerDecoRadius = radius - 14;
+
+  // Unique IDs
+  const uid = label.replace(/[\s&\n]/g, '');
+  const glowId = `soc-glow-${uid}`;
+  const gradId = `soc-grad-${uid}`;
+  const pulseId = `soc-pulse-${uid}`;
+
+  // Generate tick marks (SOC radar-style)
+  const tickCount = 36;
+  const ticks = Array.from({ length: tickCount }, (_, i) => {
+    const angle = (i * 360) / tickCount - 90;
+    const rad = (angle * Math.PI) / 180;
+    const isMajor = i % 9 === 0;
+    const len = isMajor ? 6 : 3;
+    const r1 = outerRadius + 2;
+    const r2 = r1 + len;
+    return {
+      x1: center + r1 * Math.cos(rad),
+      y1: center + r1 * Math.sin(rad),
+      x2: center + r2 * Math.cos(rad),
+      y2: center + r2 * Math.sin(rad),
+      isMajor,
+    };
+  });
+
+  // Status color for inner glow ring
+  const statusAlpha = clamped >= 60 ? 0.15 : clamped >= 40 ? 0.1 : 0.08;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+    <div className="soc-gauge-container">
       <div style={{ position: 'relative', width: size, height: size }}>
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
           <defs>
-            <filter id={filterId} x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
-              <feFlood floodColor={color} floodOpacity="0.35" result="color" />
+            {/* Glow filter */}
+            <filter id={glowId} x="-60%" y="-60%" width="220%" height="220%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur" />
+              <feFlood floodColor={color} floodOpacity="0.5" result="color" />
               <feComposite in="color" in2="blur" operator="in" result="shadow" />
               <feMerge>
                 <feMergeNode in="shadow" />
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
+            {/* Gradient for arc */}
+            <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor={color} stopOpacity="1" />
+              <stop offset="100%" stopColor={color} stopOpacity="0.6" />
+            </linearGradient>
+            {/* Pulse animation */}
+            <radialGradient id={pulseId} cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor={color} stopOpacity="0.08" />
+              <stop offset="80%" stopColor={color} stopOpacity="0.02" />
+              <stop offset="100%" stopColor={color} stopOpacity="0" />
+            </radialGradient>
           </defs>
-          {/* Background circle */}
+
+          {/* Ambient pulse background */}
+          <circle cx={center} cy={center} r={outerRadius + 10} fill={`url(#${pulseId})`} className="soc-pulse-ring" />
+
+          {/* Tick marks — SOC radar perimeter */}
+          {ticks.map((t, i) => (
+            <line
+              key={i}
+              x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2}
+              stroke={color}
+              strokeWidth={t.isMajor ? 1.5 : 0.6}
+              opacity={t.isMajor ? 0.5 : 0.2}
+            />
+          ))}
+
+          {/* Outer decorative ring */}
+          <circle
+            cx={center} cy={center} r={outerRadius}
+            fill="none" stroke={color} strokeWidth={0.5} opacity={0.18}
+          />
+
+          {/* Inner decorative ring */}
+          <circle
+            cx={center} cy={center} r={innerDecoRadius}
+            fill="none" stroke={color} strokeWidth={0.5} opacity={0.12}
+          />
+
+          {/* Inner ambient fill */}
+          <circle
+            cx={center} cy={center} r={innerDecoRadius}
+            fill={color} opacity={statusAlpha}
+          />
+
+          {/* Background track */}
           <circle
             cx={center} cy={center} r={radius}
             fill="none"
             stroke="var(--color-ring-bg)"
             strokeWidth={strokeWidth}
-            opacity={0.6}
+            opacity={0.35}
           />
-          {/* Filled arc with glow */}
+
+          {/* Secondary ghost arc (subtle full range indicator) */}
           <circle
             cx={center} cy={center} r={radius}
             fill="none"
             stroke={color}
             strokeWidth={strokeWidth}
+            opacity={0.06}
+          />
+
+          {/* Main progress arc */}
+          <circle
+            cx={center} cy={center} r={radius}
+            fill="none"
+            stroke={`url(#${gradId})`}
+            strokeWidth={strokeWidth}
             strokeLinecap="round"
             strokeDasharray={circumference}
             strokeDashoffset={offset}
             transform={`rotate(-90 ${center} ${center})`}
-            filter={`url(#${filterId})`}
-            style={{ transition: 'stroke-dashoffset 1s cubic-bezier(0.4, 0, 0.2, 1)' }}
+            filter={`url(#${glowId})`}
+            className="soc-arc-animate"
           />
+
+          {/* Arc endpoint dot */}
+          {clamped > 0 && clamped < 100 && (() => {
+            const endAngle = ((clamped / 100) * 360 - 90) * (Math.PI / 180);
+            const dotX = center + radius * Math.cos(endAngle);
+            const dotY = center + radius * Math.sin(endAngle);
+            return (
+              <>
+                <circle cx={dotX} cy={dotY} r={strokeWidth / 2 + 2} fill={color} opacity={0.3} className="soc-dot-pulse" />
+                <circle cx={dotX} cy={dotY} r={strokeWidth / 2 - 1} fill={color} />
+              </>
+            );
+          })()}
         </svg>
-        {/* Center text */}
-        <div style={{
-          position: 'absolute', top: 0, left: 0, width: size, height: size,
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          pointerEvents: 'none',
-        }}>
-          <span style={{ fontSize: 28, fontWeight: 800, color, lineHeight: 1, textShadow: `0 0 12px ${color}40` }}>
+
+        {/* Center content */}
+        <div className="soc-gauge-center" style={{ width: size, height: size }}>
+          <span className="soc-gauge-value" style={{ color, textShadow: `0 0 20px ${color}60, 0 0 40px ${color}20` }}>
             {clamped}
           </span>
+          <span className="soc-gauge-percent" style={{ color }}>%</span>
           {subtitle && (
-            <span style={{
-              fontSize: 10, color, marginTop: 3, fontWeight: 700,
-              textTransform: 'uppercase', letterSpacing: 0.8, opacity: 0.85,
-            }}>
+            <span className="soc-gauge-subtitle" style={{ color }}>
               {subtitle}
             </span>
           )}
         </div>
       </div>
-      <span style={{
-        fontSize: 12, fontWeight: 700, color: 'var(--color-text)',
-        textAlign: 'center', lineHeight: 1.3, whiteSpace: 'pre-line',
-      }}>
+
+      {/* Label */}
+      <span className="soc-gauge-label">
         {label}
       </span>
     </div>
@@ -232,7 +322,7 @@ export default function CoreObjectivesGraphs({
       score: financialScore,
       details: [
         { key: 'Active Loans', value: String(activeLoans), ok: activeLoans <= 1 },
-        { key: 'Outstanding', value: `$${outstanding.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, ok: outstanding === 0 },
+        { key: 'Outstanding', value: `Ksh.${outstanding.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, ok: outstanding === 0 },
         { key: 'Fin. Risk', value: `${financialRiskPct}%`, ok: financialRiskPct <= 30 },
         { key: 'Next Due', value: loansSummary?.next_due_date ? new Date(loansSummary.next_due_date).toLocaleDateString() : '—', ok: !loansSummary?.next_due_date },
       ],
@@ -250,34 +340,52 @@ export default function CoreObjectivesGraphs({
   ];
 
   return (
-    <div className="card objectives-card">
-      <h2>Core Monitoring Objectives</h2>
-      <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '0 0 0 0', padding: '0 1.4rem 1rem' }}>
-        Real-time health scores across SentinelIQ&apos;s 3 pillars
+    <div className="card objectives-card soc-objectives">
+      <div className="soc-header">
+        <div className="soc-header-left">
+          <span className="soc-header-indicator" />
+          <h2>Core Monitoring Objectives</h2>
+        </div>
+        <span className="soc-header-badge">LIVE</span>
+      </div>
+      <p className="soc-subheading">
+        Real-time threat posture across SentinelIQ&apos;s 3 security pillars
       </p>
 
-      <div className="objectives-grid">
+      <div className="objectives-grid soc-grid">
         {objectives.map((obj) => {
           const color = getScoreColor(obj.score);
+          const threat = obj.score >= 80 ? 'NOMINAL' : obj.score >= 60 ? 'ELEVATED' : obj.score >= 40 ? 'GUARDED' : obj.score >= 20 ? 'HIGH' : 'SEVERE';
           return (
-            <div key={obj.label} className="objective-column">
+            <div key={obj.label} className="objective-column soc-column">
+              {/* Threat level indicator at top */}
+              <div className="soc-threat-badge" style={{
+                color,
+                borderColor: color,
+                boxShadow: `0 0 8px ${color}25`,
+              }}>
+                {threat}
+              </div>
+
               <CircularGraph
                 value={obj.score}
                 label={obj.label}
                 color={color}
                 subtitle={getScoreLabel(obj.score)}
-                size={120}
+                size={170}
                 strokeWidth={10}
               />
 
-              {/* Detail rows */}
-              <div style={{ width: '100%', marginTop: 16, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {/* Detail rows with SOC styling */}
+              <div className="soc-details">
                 {obj.details.map((d) => (
-                  <div key={d.key} className="objective-detail-row" style={{
-                    background: d.ok ? 'var(--color-detail-ok)' : 'var(--color-detail-warn)',
+                  <div key={d.key} className="soc-detail-row" style={{
+                    borderLeftColor: d.ok ? 'var(--color-success)' : 'var(--color-danger)',
                   }}>
-                    <span style={{ color: 'var(--color-text-secondary)', fontWeight: 500 }}>{d.key}</span>
-                    <span style={{ fontWeight: 700, color: d.ok ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                    <span className="soc-detail-key">{d.key}</span>
+                    <span className="soc-detail-value" style={{
+                      color: d.ok ? 'var(--color-success)' : 'var(--color-danger)',
+                    }}>
                       {d.value}
                     </span>
                   </div>
