@@ -10,6 +10,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy import text
 from app.api import auth
 from app.routes import users, admin, email_verification, password_reset, analytics, events, dashboard, dashboard_ws
+from app.routes.user_api import router as user_api_router
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.request_logging import RequestLoggingMiddleware, UserTrackingMiddleware
 from app.middleware.pii_scrubber import PIIScrubberMiddleware
@@ -285,6 +286,7 @@ app.include_router(
 # ============================================================================
 app.include_router(graph_router)  # Graph visualization API
 app.include_router(message_router)  # Secure message center
+app.include_router(user_api_router)  # User fintech API (loans, sessions, MFA, risk, alerts)
 
 init_db()
 
