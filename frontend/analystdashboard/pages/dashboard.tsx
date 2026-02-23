@@ -453,9 +453,7 @@ export default function AnalystDashboard() {
       <aside className="soc-sidebar">
         <div className="sidebar-brand">
           <div className="brand-icon-wrap">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="brand-icon">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            </svg>
+            <img src="/sentineliq-icon.jpeg" alt="SentinelIQ" className="brand-icon-img" />
             <div className="brand-pulse" />
           </div>
           <div className="brand-text">

@@ -11,6 +11,10 @@ import AuditLogs from './pages/AuditLogs';
 import ActivityFeed from './pages/ActivityFeed';
 import SystemHealth from './pages/SystemHealth';
 import UserDashboard from './pages/UserDashboard';
+import Governance from './pages/Governance';
+import Enforcement from './pages/Enforcement';
+import IdentityAccess from './pages/IdentityAccess';
+import Compliance from './pages/Compliance';
 
 // Protected Route wrapper - checks authentication
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -84,6 +88,10 @@ function App() {
         <Route path="audit" element={<AuditLogs />} />
         <Route path="activity" element={<ActivityFeed />} />
         <Route path="health" element={<SystemHealth />} />
+        <Route path="governance" element={<Governance />} />
+        <Route path="enforcement" element={<Enforcement />} />
+        <Route path="iam" element={<IdentityAccess />} />
+        <Route path="compliance" element={<Compliance />} />
       </Route>
       
       {/* Catch all - redirect to appropriate dashboard */}

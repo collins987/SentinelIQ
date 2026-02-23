@@ -218,10 +218,15 @@ __all__ = [
     "Investigation",
     "InvestigationNote",
     "Recommendation",
+    "Policy",
+    "EnforcementAction",
 ]
 
 # Import analyst models so they are registered
 from app.models.analyst import Investigation, InvestigationNote, Recommendation
+
+# Import admin governance models so they are registered
+from app.models.admin import Policy, EnforcementAction
 
 
 class UserAccessLog(Base):

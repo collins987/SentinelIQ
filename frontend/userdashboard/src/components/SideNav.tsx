@@ -14,9 +14,9 @@ export default function SideNav({ onSelect, selected }: { onSelect: (label: stri
 
   return (
     <nav className={`sidebar${collapsed ? ' collapsed' : ''}`}>
-      {/* Logo — editorial serif mark */}
+      {/* Logo */}
       <div className="sidebar-logo">
-        <div className="sidebar-logo-icon">S.</div>
+        <img src="/sentineliq-icon.jpeg" alt="SentinelIQ" className="sidebar-logo-img" />
         {!collapsed && (
           <div className="sidebar-logo-text">
             SENTINEL<span>IQ</span>

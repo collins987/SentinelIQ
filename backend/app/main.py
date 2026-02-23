@@ -10,6 +10,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy import text
 from app.api import auth
 from app.routes import users, admin, email_verification, password_reset, analytics, events, dashboard, dashboard_ws
+from app.routes.admin_governance import router as admin_governance_router
 from app.routes.user_api import router as user_api_router
 from app.routes.analyst import router as analyst_router
 from app.middleware.security_headers import SecurityHeadersMiddleware
@@ -23,6 +24,7 @@ from app.dependencies import require_role
 from prometheus_fastapi_instrumentator import Instrumentator
 from app.models import Base
 import app.models.analyst  # Register analyst models for create_all
+import app.models.admin    # Register admin governance models for create_all
 from app.core.seed import seed_all
 from app.core.logging import logger
 from app.services.graph_service import router as graph_router
@@ -292,6 +294,7 @@ app.include_router(graph_router)  # Graph visualization API
 app.include_router(message_router)  # Secure message center
 app.include_router(user_api_router)  # User fintech API (loans, sessions, MFA, risk, alerts)
 app.include_router(analyst_router)  # Analyst investigation & risk module
+app.include_router(admin_governance_router)  # Admin governance, policy & enforcement module
 
 init_db()
 

@@ -242,6 +242,15 @@ a:hover { text-decoration: underline; }
   z-index: 2;
 }
 
+.brand-icon-img {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  object-fit: cover;
+  position: relative;
+  z-index: 2;
+}
+
 .brand-pulse {
   position: absolute;
   inset: -4px;

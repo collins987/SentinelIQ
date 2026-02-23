@@ -2,7 +2,7 @@ import { useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch } from '../store/hooks';
 import { setCredentials, setLoading } from '../features/authSlice';
-import { ShieldCheckIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 
 /**
  * Decode JWT token payload (base64url decoding)
@@ -97,8 +97,8 @@ export default function Login() {
       <div className="w-full max-w-md">
         {/* Logo & Title */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-sentinel-500 to-sentinel-700 rounded-2xl mb-4">
-            <ShieldCheckIcon className="w-10 h-10 text-white" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 overflow-hidden">
+            <img src="/sentineliq-logo.jpeg" alt="SentinelIQ" className="w-16 h-16 object-cover" />
           </div>
           <h1 className="text-3xl font-bold text-white">SentinelIQ</h1>
           <p className="text-gray-400 mt-2">Security Dashboard</p>
@@ -107,7 +107,7 @@ export default function Login() {
         {/* Login Form Card */}
         <div className="card">
           <h2 className="text-xl font-semibold text-white text-center mb-6">
-            Sign in to your account
+            Sign in to your Admin account
           </h2>
           
           {error && (

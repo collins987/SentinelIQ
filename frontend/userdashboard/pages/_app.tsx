@@ -7,7 +7,9 @@ function App({ Component, pageProps }: AppProps) {
   return (
     <>
       <Head>
-        <title>SentinelIQ User Dashboard</title>
+        <link rel="icon" type="image/jpeg" href="/sentineliq-icon.jpeg" />
+        <link rel="apple-touch-icon" href="/sentineliq-icon.jpeg" />
+        <title>SentinelIQ | User Dashboard</title>
       </Head>
       <UserProvider>
         <Component {...pageProps} />
