@@ -1,16 +1,83 @@
-# Node
+#  Dependencies 
 node_modules/
 **/node_modules/
 
-# Next.js
+# Python 
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+*.egg
+dist/
+build/
+eggs/
+*.whl
+pip-log.txt
+pip-delete-this-directory.txt
+.venv/
+venv/
+env/
+
+# ─── Next.js ──────────────────────────────────────
 .next/
+**/.next/
 out/
 
-# Env files
-.env
-.env.*
+# ─── Vite / React ────────────────────────────────
+frontend/dist/
 
-# Logs
+# ─── Environment variables ───────────────────────
+.env
+.env.local
+.env.*.local
+# Keep .env.example files for documentation
+!.env.example
+!.env.*.example
+
+# ─── Logs 
 npm-debug.log*
 yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
 
+#  OS files 
+Thumbs.db
+Desktop.ini
+
+# ─── IDE / Editor 
+.vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# ─── Testing / Coverage ──────────────────────────
+coverage/
+htmlcov/
+.coverage
+.coverage.*
+.pytest_cache/
+.mypy_cache/
+.tox/
+.nox/
+junit.xml
+*.cover
+
+# ─── Docker ───────────────────────────────────────
+# Ignore Docker data volumes mounted locally
+docker-data/
+
+# ─── Misc ─────────────────────────────────────────
+*.bak
+*.tmp
+*.temp
+.cache/

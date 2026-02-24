@@ -31,6 +31,13 @@ export default defineConfig({
         // Do NOT rewrite - backend expects /api/admin/dashboard/ws/events
       },
 
+      // Admin Governance API — must come before the generic /api rule
+      // so that /api/v1/admin/* is NOT rewritten (backend prefix is /api/v1/admin)
+      '/api/v1/admin': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+
       // User dashboard APIs - direct routes to backend
       '/user': {
         target: 'http://localhost:8000',

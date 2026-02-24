@@ -235,7 +235,11 @@ export default function UserDetail() {
             <div>
               <dt className="text-sm text-gray-400">Device</dt>
               <dd className="text-sm text-white mt-0.5">
-                {user.session.last_device_info || 'Unknown'}
+                {typeof user.session.last_device_info === 'string'
+                  ? user.session.last_device_info
+                  : (user.session.last_device_info && typeof user.session.last_device_info === 'object' && Object.keys(user.session.last_device_info).length > 0)
+                    ? JSON.stringify(user.session.last_device_info)
+                    : 'Unknown'}
               </dd>
             </div>
           </dl>

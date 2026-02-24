@@ -1,11 +1,23 @@
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
 
 /**
+ * Normalize a date string so naive ISO timestamps (without timezone)
+ * are treated as UTC rather than local time.
+ */
+function normalizeUTC(date: string): string {
+  // If the string has no timezone indicator (Z, +, or - after time portion), append Z
+  if (!date.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(date) && !/[+-]\d{4}$/.test(date)) {
+    return date + 'Z';
+  }
+  return date;
+}
+
+/**
  * Format a date string to a human-readable format
  */
 export function formatDate(date: string | Date | null, pattern = 'MMM d, yyyy HH:mm'): string {
   if (!date) return 'N/A';
-  const d = typeof date === 'string' ? parseISO(date) : date;
+  const d = typeof date === 'string' ? parseISO(normalizeUTC(date)) : date;
   return format(d, pattern);
 }
 
@@ -14,7 +26,7 @@ export function formatDate(date: string | Date | null, pattern = 'MMM d, yyyy HH
  */
 export function formatRelativeTime(date: string | Date | null): string {
   if (!date) return 'N/A';
-  const d = typeof date === 'string' ? parseISO(date) : date;
+  const d = typeof date === 'string' ? parseISO(normalizeUTC(date)) : date;
   return formatDistanceToNow(d, { addSuffix: true });
 }
 

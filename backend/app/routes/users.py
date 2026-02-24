@@ -62,21 +62,41 @@ def get_user_profile_root(current_user: User = Depends(get_current_user)):
 @user_router.get("/user/dashboard", summary="Get all user dashboard info (profile, risk, activity, session)")
 def get_user_dashboard_root(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     from sqlalchemy import desc, and_, func
+    from app.models import Loan, SecurityAlert, UserSession
     now = datetime.utcnow()
     profile = {
         "id": current_user.id,
         "name": f"{current_user.first_name} {current_user.last_name}",
+        "first_name": current_user.first_name,
+        "last_name": current_user.last_name,
         "email": current_user.email,
         "role": current_user.role,
+        "mfa_enabled": getattr(current_user, "mfa_enabled", False),
+        "trust_level": getattr(current_user, "trust_level", "unknown"),
+        "phone": getattr(current_user, "phone", None),
+        "phone_verified": getattr(current_user, "phone_verified", False),
+        "email_verified": getattr(current_user, "email_verified", False),
+        "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
+        "last_login_at": current_user.last_login_at.isoformat() if current_user.last_login_at else None,
     }
-    risk_scores = []
-    if hasattr(current_user, "risk_score"):
-        risk_scores.append({
-            "id": current_user.id,
-            "score": getattr(current_user, "risk_score", 0),
+
+    # Risk scores with domain breakdown
+    risk_breakdown = getattr(current_user, "risk_breakdown", None) or {"identity": 0, "behavior": 0, "financial": 0, "compliance": 0}
+    overall_score = getattr(current_user, "risk_score", 0) or 0
+
+    risk_scores = [
+        {
+            "id": f"{current_user.id}_overall",
+            "score": overall_score,
             "type": "overall",
-            "suggestions": ["Review recent activity", "Update password regularly"]
-        })
+            "suggestions": _get_risk_suggestions(overall_score, risk_breakdown, getattr(current_user, "mfa_enabled", False)),
+        },
+        {"id": f"{current_user.id}_identity", "score": risk_breakdown.get("identity", 0), "type": "identity", "suggestions": _get_domain_suggestions("identity", risk_breakdown.get("identity", 0), current_user)},
+        {"id": f"{current_user.id}_behavior", "score": risk_breakdown.get("behavior", 0), "type": "behavior", "suggestions": _get_domain_suggestions("behavior", risk_breakdown.get("behavior", 0), current_user)},
+        {"id": f"{current_user.id}_financial", "score": risk_breakdown.get("financial", 0), "type": "financial", "suggestions": _get_domain_suggestions("financial", risk_breakdown.get("financial", 0), current_user)},
+        {"id": f"{current_user.id}_compliance", "score": risk_breakdown.get("compliance", 0), "type": "compliance", "suggestions": _get_domain_suggestions("compliance", risk_breakdown.get("compliance", 0), current_user)},
+    ]
+
     recent_actions = db.query(AuditLog).filter(
         AuditLog.actor_id == current_user.id
     ).order_by(desc(AuditLog.timestamp)).limit(10).all()
@@ -88,20 +108,56 @@ def get_user_dashboard_root(current_user: User = Depends(get_current_user), db: 
             AuditLog.timestamp >= cutoff_24h
         )
     ).scalar() or 0
+
+    # Session info
+    active_sessions_count = db.query(func.count(UserSession.id)).filter(
+        UserSession.user_id == current_user.id,
+        UserSession.revoked == False
+    ).scalar() or 0
+
     session_info = {
         "last_login_at": current_user.last_login_at.isoformat() if current_user.last_login_at else None,
         "last_login_ip": current_user.last_login_ip,
         "last_device_info": current_user.last_device_info,
-        "active_sessions": db.query(func.count()).select_from(AuditLog).filter(
-            AuditLog.actor_id == current_user.id,
-            AuditLog.action == "login_success",
-            AuditLog.timestamp >= cutoff_24h
-        ).scalar() or 0
+        "active_sessions": active_sessions_count if active_sessions_count > 0 else (
+            db.query(func.count()).select_from(AuditLog).filter(
+                AuditLog.actor_id == current_user.id,
+                AuditLog.action == "login_success",
+                AuditLog.timestamp >= cutoff_24h
+            ).scalar() or 0
+        ),
     }
+
+    # Loans summary
+    try:
+        loans = db.query(Loan).filter(Loan.user_id == current_user.id).all()
+        active_loans = [l for l in loans if l.status in ("active", "pending")]
+        loans_summary = {
+            "total_loans": len(loans),
+            "active_loans": len(active_loans),
+            "total_outstanding": sum(float(l.outstanding or 0) for l in active_loans),
+            "next_due_date": min((l.next_due_date.isoformat() for l in active_loans if l.next_due_date), default=None),
+        }
+    except Exception:
+        loans_summary = {"total_loans": 0, "active_loans": 0, "total_outstanding": 0, "next_due_date": None}
+
+    # Alerts summary
+    try:
+        unread_alerts = db.query(func.count(SecurityAlert.id)).filter(
+            SecurityAlert.user_id == current_user.id,
+            SecurityAlert.is_read == False,
+            SecurityAlert.is_dismissed == False
+        ).scalar() or 0
+        alerts_summary = {"unread": unread_alerts}
+    except Exception:
+        alerts_summary = {"unread": 0}
+
     import json
     return {
         "profile": profile,
         "risk_scores": risk_scores,
+        "risk_breakdown": risk_breakdown,
+        "trust_level": getattr(current_user, "trust_level", "unknown") or "unknown",
         "activity": {
             "failed_logins_24h": failed_logins,
             "recent_actions": [
@@ -113,8 +169,55 @@ def get_user_dashboard_root(current_user: User = Depends(get_current_user), db: 
                 for log in recent_actions
             ]
         },
-        "session": session_info
+        "session": session_info,
+        "loans_summary": loans_summary,
+        "alerts_summary": alerts_summary,
     }
+
+
+def _get_risk_suggestions(score: int, breakdown: dict, mfa_enabled: bool) -> list:
+    """Generate contextual risk mitigation suggestions based on current state."""
+    suggestions = []
+    if not mfa_enabled:
+        suggestions.append("Enable MFA to reduce identity risk by 30 points")
+    if breakdown.get("financial", 0) > 50:
+        suggestions.append("Make on-time loan repayments to reduce financial risk")
+    if breakdown.get("behavior", 0) > 50:
+        suggestions.append("Maintain consistent login patterns to improve behavioral score")
+    if breakdown.get("identity", 0) > 50:
+        suggestions.append("Verify your email and phone to strengthen identity trust")
+    if score > 600:
+        suggestions.append("Contact support if you believe your risk score is incorrect")
+    if not suggestions:
+        suggestions.append("Your risk profile looks healthy — keep up the good practices!")
+    return suggestions
+
+
+def _get_domain_suggestions(domain: str, score: int, user) -> list:
+    """Get domain-specific risk suggestions."""
+    s = []
+    if domain == "identity":
+        if not getattr(user, "mfa_enabled", False):
+            s.append("Enable MFA for stronger identity verification")
+        if not getattr(user, "email_verified", False):
+            s.append("Verify your email address")
+        if not getattr(user, "phone_verified", False):
+            s.append("Add and verify a phone number")
+    elif domain == "behavior":
+        if score > 30:
+            s.append("Avoid rapid password changes")
+            s.append("Log in from consistent devices and locations")
+    elif domain == "financial":
+        if score > 30:
+            s.append("Make loan repayments on time")
+            s.append("Avoid exceeding transaction thresholds")
+    elif domain == "compliance":
+        if score > 30:
+            s.append("Complete KYC verification")
+            s.append("Ensure transactions meet regulatory requirements")
+    if not s:
+        s.append(f"Your {domain} risk is low — no action needed")
+    return s
 
 # ---------------------------------------------------------------------
 # User Profile Endpoint (legacy /users/profile)

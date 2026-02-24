@@ -3,7 +3,7 @@ Core SQLAlchemy models for SentinelIQ.
 This module exports all database models for the application.
 """
 
-from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, DateTime, JSON, Text, Enum as SQLEnum
+from sqlalchemy import Column, String, Integer, Float, Boolean, ForeignKey, DateTime, JSON, Text, Numeric, Date, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from enum import Enum
@@ -65,8 +65,18 @@ class User(Base):
     
     # Risk and security
     risk_score = Column(Integer, default=0)
+    risk_breakdown = Column(JSON, default=lambda: {"identity": 0, "behavior": 0, "financial": 0, "compliance": 0})
+    trust_level = Column(String, default="unknown")  # trusted, under_review, restricted, unknown
     is_active = Column(Boolean, default=True)
     email_verified = Column(Boolean, default=False)
+    
+    # MFA
+    mfa_enabled = Column(Boolean, default=False)
+    totp_secret = Column(String, nullable=True)  # encrypted TOTP secret
+    
+    # Contact
+    phone = Column(String, nullable=True)
+    phone_verified = Column(Boolean, default=False)
     
     # System user flag (NEW)
     is_system_user = Column(Boolean, default=False)
@@ -125,6 +135,11 @@ class User(Base):
             "visibility": self.visibility,
             "is_system_user": self.is_system_user,
             "risk_score": self.risk_score,
+            "risk_breakdown": self.risk_breakdown,
+            "trust_level": self.trust_level,
+            "mfa_enabled": self.mfa_enabled,
+            "phone": self.phone,
+            "phone_verified": self.phone_verified,
             "is_active": self.is_active,
             "email_verified": self.email_verified,
             "user_metadata": self.user_metadata,
@@ -196,27 +211,137 @@ __all__ = [
     "LoginAttempt",
     "EmailToken",
     "UserAccessLog",
+    "Loan",
+    "LoanRepayment",
+    "UserSession",
+    "SecurityAlert",
+    "Investigation",
+    "InvestigationNote",
+    "Recommendation",
+    "Policy",
+    "EnforcementAction",
 ]
+
+# Import analyst models so they are registered
+from app.models.analyst import Investigation, InvestigationNote, Recommendation
+
+# Import admin governance models so they are registered
+from app.models.admin import Policy, EnforcementAction
 
 
 class UserAccessLog(Base):
     """
     Tracks access to user profiles for audit and compliance.
-    
-    Records who accessed what user data, when, from where,
-    and which fields were accessed.
     """
     __tablename__ = "user_access_logs"
     
     id = Column(String, primary_key=True, default=generate_uuid)
-    accessor_id = Column(String, ForeignKey("users.id"), nullable=False)  # Who accessed
-    target_user_id = Column(String, ForeignKey("users.id"), nullable=False)  # Whose data
-    action = Column(String, nullable=False)  # read, read_metadata, read_audit, etc.
-    fields_accessed = Column(JSON, default=list)  # Which fields were returned
-    access_level = Column(String, nullable=False)  # full, redacted, public
+    accessor_id = Column(String, ForeignKey("users.id"), nullable=False)
+    target_user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    action = Column(String, nullable=False)
+    fields_accessed = Column(JSON, default=list)
+    access_level = Column(String, nullable=False)
     ip_address = Column(String, nullable=True)
     user_agent = Column(String, nullable=True)
     request_path = Column(String, nullable=True)
     success = Column(Boolean, default=True)
     failure_reason = Column(String, nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
+
+
+# ─────────────────────────────────────────────────────────────
+# Fintech Models: Loans, Repayments, Sessions, Alerts
+# ─────────────────────────────────────────────────────────────
+
+class Loan(Base):
+    """
+    Loan model for fintech credit risk tracking.
+    Status lifecycle: pending → approved/rejected → active → closed/defaulted
+    """
+    __tablename__ = "loans"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    org_id = Column(String, ForeignKey("organizations.id"), nullable=True)
+    status = Column(String, default="pending")  # pending, approved, rejected, active, closed, defaulted
+    principal = Column(Numeric(12, 2), nullable=False)
+    outstanding = Column(Numeric(12, 2), nullable=False)
+    interest_rate = Column(Numeric(5, 2), default=0)
+    term_months = Column(Integer, default=12)
+    purpose = Column(String, nullable=True)
+    next_due_date = Column(Date, nullable=True)
+    repayment_schedule = Column(JSON, default=list)  # list of installments
+    last_repayment_at = Column(DateTime, nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    closed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", backref="loans")
+    repayments = relationship("LoanRepayment", back_populates="loan", order_by="LoanRepayment.created_at.desc()")
+
+
+class LoanRepayment(Base):
+    """
+    Individual loan repayment record.
+    Status: pending, completed, failed, late
+    """
+    __tablename__ = "loan_repayments"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    loan_id = Column(String, ForeignKey("loans.id"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    amount = Column(Numeric(12, 2), nullable=False)
+    status = Column(String, default="completed")  # pending, completed, failed, late
+    due_date = Column(Date, nullable=True)
+    paid_at = Column(DateTime, nullable=True)
+    is_late = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    loan = relationship("Loan", back_populates="repayments")
+
+
+class UserSession(Base):
+    """
+    Tracks user sessions for device/location management.
+    Users can view and revoke their sessions.
+    """
+    __tablename__ = "user_sessions"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    device_info = Column(JSON, default=dict)  # user agent, device id, fingerprint
+    ip_address = Column(String, nullable=True)
+    location = Column(JSON, default=dict)  # country, city, coords
+    user_agent = Column(String, nullable=True)
+    is_current = Column(Boolean, default=False)
+    revoked = Column(Boolean, default=False)
+    refresh_jti = Column(String, nullable=True)  # jti of refresh token
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_seen_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", backref="sessions")
+
+
+class SecurityAlert(Base):
+    """
+    Security alerts sent to users (suspicious login, risk changes, etc.)
+    """
+    __tablename__ = "security_alerts"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    alert_type = Column(String, nullable=False)  # suspicious_login, risk_change, mfa_disabled, loan_overdue, etc.
+    severity = Column(String, default="info")  # info, warning, critical
+    title = Column(String, nullable=False)
+    message = Column(Text, nullable=False)
+    is_read = Column(Boolean, default=False)
+    is_dismissed = Column(Boolean, default=False)
+    alert_metadata = Column(JSON, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", backref="security_alerts")

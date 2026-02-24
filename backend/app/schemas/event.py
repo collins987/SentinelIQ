@@ -48,7 +48,7 @@ class AuthenticationPayload(EventPayload):
 class TransactionPayload(EventPayload):
     """Transaction event payload."""
     amount: float
-    currency: str = "USD"
+    currency: str = "KES"
     recipient_id: Optional[str] = None
     transaction_type: str  # "transfer", "payment", "withdrawal"
 

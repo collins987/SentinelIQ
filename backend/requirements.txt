@@ -62,3 +62,7 @@ aiosmtplib==1.1.7
 aiofiles==23.2.1
 
 PyJWT>=2.0.0
+
+# TOTP MFA
+pyotp==2.9.0
+alembic>=1.7.0

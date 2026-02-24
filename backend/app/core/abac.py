@@ -245,7 +245,7 @@ class ABACPolicyStore:
         self.add_policy(ABACPolicy(
             id="high_risk_transaction",
             name="High Risk Transaction Control",
-            description="Transactions over $10k require manager approval",
+            description="Transactions over Ksh.10k require manager approval",
             resource_type="transaction",
             action="approve",
             priority=100,

@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 
 const navItems = [
-  { label: 'Dashboard', icon: '🏠' },
-  { label: 'Profile', icon: '👤' },
-  { label: 'Risk', icon: '⚠️' },
-  { label: 'Activity', icon: '📋' },
-  { label: 'Support', icon: '💬' },
+  { label: 'Dashboard', icon: '⬡' },
+  { label: 'Risk', icon: '◈' },
+  { label: 'Loans', icon: '◇' },
+  { label: 'Sessions', icon: '◻' },
+  { label: 'Security', icon: '△' },
+  { label: 'Support', icon: '○' },
 ];
 
 export default function SideNav({ onSelect, selected }: { onSelect: (label: string) => void, selected: string }) {
@@ -15,10 +16,10 @@ export default function SideNav({ onSelect, selected }: { onSelect: (label: stri
     <nav className={`sidebar${collapsed ? ' collapsed' : ''}`}>
       {/* Logo */}
       <div className="sidebar-logo">
-        <div className="sidebar-logo-icon">S</div>
+        <img src="/sentineliq-icon.jpeg" alt="SentinelIQ" className="sidebar-logo-img" />
         {!collapsed && (
           <div className="sidebar-logo-text">
-            Sentinel<span>IQ</span>
+            SENTINEL<span>IQ</span>
           </div>
         )}
       </div>

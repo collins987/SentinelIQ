@@ -112,7 +112,7 @@ export interface UserDetail {
   session: {
     last_login_at: string | null;
     last_login_ip: string | null;
-    last_device_info: string | null;
+    last_device_info: string | Record<string, unknown> | null;
     active_sessions: number;
   };
   activity: {

@@ -408,8 +408,8 @@ async def get_user_detail(
             "last_name": user.last_name,
             "role": user.role,
             "org_id": user.org_id,
-            "created_at": user.created_at.isoformat() if user.created_at else None,
-            "updated_at": user.updated_at.isoformat() if user.updated_at else None
+            "created_at": (user.created_at.isoformat() + "Z") if user.created_at else None,
+            "updated_at": (user.updated_at.isoformat() + "Z") if user.updated_at else None
         },
         "security": {
             "risk_score": user.risk_score,
@@ -420,9 +420,13 @@ async def get_user_detail(
             "visibility": user.visibility
         },
         "session": {
-            "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
+            "last_login_at": (user.last_login_at.isoformat() + "Z") if user.last_login_at else None,
             "last_login_ip": user.last_login_ip,
-            "last_device_info": user.last_device_info,
+            "last_device_info": (
+                user.last_device_info.get("user_agent")
+                or user.last_device_info.get("device")
+                or (None if not user.last_device_info else str(user.last_device_info))
+            ) if isinstance(user.last_device_info, dict) else user.last_device_info,
             "active_sessions": active_sessions
         },
         "activity": {
@@ -431,7 +435,7 @@ async def get_user_detail(
                 {
                     "action": log.action,
                     "target": log.target,
-                    "timestamp": log.timestamp.isoformat() if log.timestamp else None
+                    "timestamp": (log.timestamp.isoformat() + "Z") if log.timestamp else None
                 }
                 for log in recent_activity
             ]

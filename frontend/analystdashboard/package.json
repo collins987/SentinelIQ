@@ -1,0 +1,29 @@
+{
+  "name": "sentineliq-analyst-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 4100",
+    "build": "next build",
+    "start": "next start -p 4100"
+  },
+  "dependencies": {
+    "@nivo/bar": "^0.99.0",
+    "@nivo/core": "^0.99.0",
+    "@nivo/line": "^0.99.0",
+    "@nivo/pie": "^0.99.0",
+    "@nivo/radial-bar": "^0.99.0",
+    "axios": "^1.7.0",
+    "framer-motion": "^12.34.3",
+    "next": "^14.2.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "recharts": "^2.12.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.3.0"
+  }
+}

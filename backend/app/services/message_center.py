@@ -278,7 +278,7 @@ class MessageService:
 A transaction on your account has been flagged for review.
 
 Transaction ID: {transaction_id}
-Amount: ${amount:,.2f}
+Amount: Ksh.{amount:,.2f}
 Risk Score: {risk_score:.0%}
 
 Risk Factors:
