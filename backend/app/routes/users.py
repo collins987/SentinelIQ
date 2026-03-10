@@ -57,6 +57,7 @@ def get_user_profile_root(current_user: User = Depends(get_current_user)):
         "name": f"{current_user.first_name} {current_user.last_name}",
         "email": current_user.email,
         "role": current_user.role,
+        "email_verified": getattr(current_user, "email_verified", False),
     }
 
 @user_router.get("/user/dashboard", summary="Get all user dashboard info (profile, risk, activity, session)")
@@ -402,19 +403,37 @@ def login(
             "token_type": "bearer"
         }
 
-    user = db.query(User).filter(User.email == email).first()
+    user = db.query(User).filter(User.email.ilike(email.strip())).first()
     if not user or not verify_password(password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="User account is disabled")
+
+    if not user.email_verified:
+        raise HTTPException(status_code=403, detail="Email not verified. Please verify your email first.")
 
     access_token = create_access_token(
         {
             "sub": str(user.id),
             "role": user.role,
+            "email": user.email,
             "org_id": user.org_id,
+            "is_virtual": False,
         }
     )
 
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "role": user.role,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+        }
+    }
 
 # ---------------------------------------------------------------------
 # Get current authenticated user

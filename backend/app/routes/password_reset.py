@@ -1,26 +1,29 @@
 """
-Password Reset Routes (MILESTONE 6 - STEP 4)
+Password Management Routes (MILESTONE 6 - STEP 4)
 
 Endpoints:
   POST /auth/password-reset/request?email=...
   POST /auth/password-reset/confirm
+  POST /auth/change-password  (authenticated)
 
 Handles secure password reset with single-use tokens.
 Revokes all sessions on successful reset.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy.orm import Session
 from datetime import datetime
+import re
 
-from app.dependencies import get_db
+from app.dependencies import get_db, get_current_user
 from app.models import User, AuditLog, RefreshToken
 from app.services.token_service import generate_email_token, verify_email_token
 from app.services.email_service import send_email
 from app.services.template_service import render_template
-from app.core.security import hash_password
-from app.config import FRONTEND_BASE_URL
+from app.core.security import hash_password, verify_password
+from app.core.auth_utils import revoke_all_user_tokens
+from app.config import FRONTEND_BASE_URL, ADMIN_FRONTEND_URL, ANALYST_FRONTEND_URL, VIEWER_FRONTEND_URL
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -66,8 +69,16 @@ def request_password_reset(
             db=db
         )
         
+        # Determine role-specific frontend URL
+        role_url_map = {
+            "admin": ADMIN_FRONTEND_URL,
+            "analyst": ANALYST_FRONTEND_URL,
+            "viewer": VIEWER_FRONTEND_URL,
+        }
+        frontend_url = role_url_map.get(user.role, FRONTEND_BASE_URL)
+
         # Render email template
-        reset_url = f"{FRONTEND_BASE_URL}/reset-password?token={token}"
+        reset_url = f"{frontend_url}/reset-password?token={token}"
         html = render_template(
             "password_reset.html",
             {
@@ -164,3 +175,109 @@ def confirm_password_reset(
     db.commit()
     
     return {"msg": "Password reset successful. Please login with your new password."}
+
+
+# ============================================================================
+# Change Password (Authenticated) — Universal for all roles
+# ============================================================================
+
+PASSWORD_MIN_LENGTH = 8
+PASSWORD_MAX_LENGTH = 128
+
+
+class ChangePasswordRequest(BaseModel):
+    """Change password while authenticated."""
+    current_password: str = Field(..., description="User's current password")
+    new_password: str = Field(
+        ...,
+        min_length=PASSWORD_MIN_LENGTH,
+        max_length=PASSWORD_MAX_LENGTH,
+        description="New password (min 8 chars, must include upper, lower, digit, special)"
+    )
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password_strength(cls, v: str) -> str:
+        """Enforce password strength requirements."""
+        errors = []
+        if len(v) < PASSWORD_MIN_LENGTH:
+            errors.append(f"at least {PASSWORD_MIN_LENGTH} characters")
+        if not re.search(r"[A-Z]", v):
+            errors.append("one uppercase letter")
+        if not re.search(r"[a-z]", v):
+            errors.append("one lowercase letter")
+        if not re.search(r"\d", v):
+            errors.append("one digit")
+        if not re.search(r"[!@#$%^&*(),.?\":{}|<>_\-+=\[\]~`/\\;']", v):
+            errors.append("one special character")
+        if errors:
+            raise ValueError(f"Password must contain {', '.join(errors)}")
+        return v
+
+
+@router.post("/change-password")
+def change_password(
+    payload: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Change password for the currently authenticated user.
+    
+    Works for ALL roles (admin, analyst, viewer).
+    
+    Request Body:
+        current_password: Current password for verification
+        new_password: New password (min 8 chars, strength requirements)
+    
+    Security:
+        - Requires valid JWT authentication
+        - Verifies current password before allowing change
+        - New password is bcrypt hashed
+        - ALL refresh tokens revoked (user must re-login on all devices)
+        - Rate limiting enforced by middleware
+    
+    Returns:
+        Success: {"msg": "Password changed successfully"}
+        Error: 400 if current password wrong or new password invalid
+    """
+    # Virtual users (env-based admin/test) cannot change passwords
+    if getattr(current_user, "is_virtual", False):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot change password for virtual/system accounts"
+        )
+
+    # Verify current password
+    if not verify_password(payload.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect"
+        )
+
+    # Prevent reuse of same password
+    if verify_password(payload.new_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be different from current password"
+        )
+
+    # Update password (bcrypt hashed)
+    current_user.password_hash = hash_password(payload.new_password)
+    current_user.updated_at = datetime.utcnow()
+    db.commit()
+
+    # SECURITY: Revoke ALL refresh tokens (force re-login on all devices)
+    revoke_all_user_tokens(current_user.id, db)
+
+    # Audit log
+    audit_log = AuditLog(
+        actor_id=current_user.id,
+        action="password_changed",
+        target=current_user.email,
+        event_metadata={"email": current_user.email, "method": "self_service"}
+    )
+    db.add(audit_log)
+    db.commit()
+
+    return {"msg": "Password changed successfully. Please login again on all devices."}

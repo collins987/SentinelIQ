@@ -104,6 +104,23 @@ export async function login(email: string, password: string): Promise<LoginRespo
   return res.data;
 }
 
+export async function register(
+  first_name: string,
+  last_name: string,
+  email: string,
+  password: string,
+  org_id?: string
+): Promise<LoginResponse & { user?: any; message?: string }> {
+  const res = await axios.post(`${API_BASE}/auth/register`, {
+    first_name,
+    last_name,
+    email,
+    password,
+    ...(org_id ? { org_id } : {}),
+  });
+  return res.data;
+}
+
 // ─── Profile ────────────────────────────────────────────────
 
 export async function getProfile(token: string): Promise<UserProfile> {
@@ -269,6 +286,25 @@ export async function resendPhoneCode(token: string): Promise<{ phone: string | 
 export async function submitSupportTicket(ticket: SupportTicket, token: string): Promise<{ success: boolean }> {
   const res = await axios.post(`${API_BASE}/support/ticket`, ticket, {
     headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.data;
+}
+
+// ─── Password Management ────────────────────────────────────
+
+export async function requestPasswordReset(email: string): Promise<{ message: string }> {
+  const res = await axios.post(`${API_BASE}/auth/password-reset/request`, { email });
+  return res.data;
+}
+
+export async function confirmPasswordReset(token: string, new_password: string): Promise<{ message: string }> {
+  const res = await axios.post(`${API_BASE}/auth/password-reset/confirm`, { token, new_password });
+  return res.data;
+}
+
+export async function changePassword(authToken: string, current_password: string, new_password: string): Promise<{ message: string }> {
+  const res = await axios.post(`${API_BASE}/auth/change-password`, { current_password, new_password }, {
+    headers: { Authorization: `Bearer ${authToken}` },
   });
   return res.data;
 }

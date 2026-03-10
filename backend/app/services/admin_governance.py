@@ -909,7 +909,7 @@ class AdminGovernanceService:
             password_hash=hash_password(password),
             status="active",
             is_active=True,
-            email_verified=False,
+            email_verified=True,  # Admin-created users are trusted — no email verification needed
             created_by=admin_id,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),

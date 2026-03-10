@@ -13,6 +13,7 @@ from app.routes import users, admin, email_verification, password_reset, analyti
 from app.routes.admin_governance import router as admin_governance_router
 from app.routes.user_api import router as user_api_router
 from app.routes.analyst import router as analyst_router
+from app.routes.registration import router as registration_router
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.request_logging import RequestLoggingMiddleware, UserTrackingMiddleware
 from app.middleware.pii_scrubber import PIIScrubberMiddleware
@@ -141,6 +142,13 @@ async def lifespan(app: FastAPI):
         # Start background consumer
         app.state.kafka_consumer_task = asyncio.create_task(kafka_consumer_worker(app))
         logger.info("Kafka background consumer started")
+        # Start onboarding pipeline consumers (email, risk, analytics, audit)
+        try:
+            from app.services.onboarding_consumers import start_onboarding_consumers
+            app.state.onboarding_tasks = await start_onboarding_consumers()
+            logger.info(f"Onboarding consumers started ({len(app.state.onboarding_tasks)} workers)")
+        except Exception as e:
+            logger.warning(f"Onboarding consumers failed to start: {e}")
     except Exception as e:
         logger.warning(f"Kafka initialization skipped: {e}")
     
@@ -177,6 +185,15 @@ async def lifespan(app: FastAPI):
                 await app.state.kafka_consumer_task
             except Exception:
                 pass
+        # Cancel onboarding consumers
+        if hasattr(app.state, 'onboarding_tasks'):
+            for task in app.state.onboarding_tasks:
+                task.cancel()
+                try:
+                    await task
+                except Exception:
+                    pass
+            logger.info("Onboarding consumers stopped")
     except Exception:
         pass
     
@@ -189,21 +206,6 @@ app = FastAPI(
     description="Fintech Risk & Security Intelligence Platform",
     version="2.0.0",
     lifespan=lifespan,
-)
-
-# CORS for userdashboard frontend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:4000",
-        "http://127.0.0.1:4000",
-        "http://localhost:4100",
-        "http://127.0.0.1:4100",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"]
 )
 
 # Enforce HTTPBearer as the ONLY security scheme in OpenAPI (Swagger)
@@ -263,11 +265,29 @@ app.add_middleware(PIIScrubberMiddleware)
 # 2. Rate limiting
 app.add_middleware(RateLimitMiddleware)
 
-# 1. Security headers (outermost - runs first on request, last on response)
+# 1. Security headers
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=["localhost", "127.0.0.1", "api.sentineliq.com", "sentineliq_api", "api"]
+)
+
+# 0. CORS (outermost — must wrap everything so preflight OPTIONS requests
+#    get proper Access-Control-* headers before any other middleware can
+#    reject them with a response that lacks CORS headers)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:4000",
+        "http://127.0.0.1:4000",
+        "http://localhost:4100",
+        "http://127.0.0.1:4100",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # ============================================================================
@@ -279,6 +299,7 @@ app.include_router(admin.router)
 app.include_router(auth.router)
 app.include_router(email_verification.router)  # MILESTONE 6: Step 3
 app.include_router(password_reset.router)  # MILESTONE 6: Step 4
+app.include_router(registration_router)  # Public user registration (event-driven onboarding)
 app.include_router(analytics.router)  # MILESTONE 8: Analytics & monitoring
 app.include_router(events.router)  # Event processing routes
 app.include_router(dashboard.router)  # Admin Dashboard API
@@ -327,15 +348,25 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     """Handle validation errors with detailed response."""
     logger.warning(
         f"Validation error on {request.url.path}",
-        extra={"errors": exc.errors()}
     )
     request_id = getattr(request.state, "request_id", None)
+
+    # Sanitize errors — Pydantic v2 can embed non-serializable objects (e.g. ValueError) in ctx
+    safe_errors = []
+    for err in exc.errors():
+        safe_err = {
+            "loc": err.get("loc", []),
+            "msg": err.get("msg", ""),
+            "type": err.get("type", ""),
+        }
+        safe_errors.append(safe_err)
+
     return JSONResponse(
         status_code=422,
         content={
             "error": True,
-            "detail": "Validation error",
-            "errors": exc.errors(),
+            "detail": safe_errors[0]["msg"] if safe_errors else "Validation error",
+            "errors": safe_errors,
             "request_id": request_id
         }
     )

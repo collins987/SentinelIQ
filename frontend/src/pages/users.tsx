@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppSelector } from '../store/hooks';
-import { useGetActiveUsersQuery, useGetUserStatsQuery } from '../services/dashboardApi';
+import { useGetAllUsersQuery, useGetUserStatsQuery } from '../services/dashboardApi';
 import {
   formatDate,
   getInitials,
@@ -20,19 +20,23 @@ import {
   ArrowDownIcon,
 } from '@heroicons/react/24/outline';
 
-type SortField = 'login_time' | 'risk_score' | 'email';
+type SortField = 'created_at' | 'login_time' | 'risk_score' | 'email';
+type RoleFilter = '' | 'admin' | 'analyst' | 'viewer';
 
 export default function Users() {
   const [page, setPage] = useState(1);
-  const [sortBy, setSortBy] = useState<SortField>('login_time');
+  const [sortBy, setSortBy] = useState<SortField>('created_at');
   const [searchQuery, setSearchQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>('');
   const { isAuthenticated } = useAppSelector((state) => state.auth);
   
   const { data: userStats, isLoading: statsLoading } = useGetUserStatsQuery(undefined, { skip: !isAuthenticated });
-  const { data: usersData, isLoading: usersLoading, isFetching } = useGetActiveUsersQuery({
+  const { data: usersData, isLoading: usersLoading, isFetching } = useGetAllUsersQuery({
     page,
     page_size: 20,
     sort_by: sortBy,
+    role: roleFilter || undefined,
+    search: searchQuery || undefined,
   }, { skip: !isAuthenticated });
   
   const isLoading = statsLoading || usersLoading;
@@ -45,13 +49,8 @@ export default function Users() {
     );
   }
   
-  // Filter users by search query (client-side for active users)
-  const filteredUsers = usersData?.users.filter(
-    (user) =>
-      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.first_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.last_name?.toLowerCase().includes(searchQuery.toLowerCase())
-  ) ?? [];
+  // Users are now filtered server-side via the `search` and `role` query params
+  const filteredUsers = usersData?.users ?? [];
   
   return (
     <div className="space-y-6 animate-fade-in">
@@ -101,24 +100,40 @@ export default function Users() {
               type="text"
               placeholder="Search users..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
               className="input pl-10 w-full md:w-80"
             />
           </div>
           
-          {/* Sort */}
-          <div className="flex items-center gap-2">
-            <FunnelIcon className="h-5 w-5 text-gray-400" />
-            <span className="text-sm text-gray-400">Sort by:</span>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortField)}
-              className="input py-1.5 w-40"
-            >
-              <option value="login_time">Last Login</option>
-              <option value="risk_score">Risk Score</option>
-              <option value="email">Email</option>
-            </select>
+          {/* Role Filter + Sort */}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <FunnelIcon className="h-5 w-5 text-gray-400" />
+              <span className="text-sm text-gray-400">Role:</span>
+              <select
+                value={roleFilter}
+                onChange={(e) => { setRoleFilter(e.target.value as RoleFilter); setPage(1); }}
+                className="input py-1.5 w-32"
+              >
+                <option value="">All Roles</option>
+                <option value="admin">Admin</option>
+                <option value="analyst">Analyst</option>
+                <option value="viewer">Viewer</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-400">Sort:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortField)}
+                className="input py-1.5 w-40"
+              >
+                <option value="created_at">Date Created</option>
+                <option value="login_time">Last Login</option>
+                <option value="risk_score">Risk Score</option>
+                <option value="email">Email</option>
+              </select>
+            </div>
           </div>
         </div>
         

@@ -266,12 +266,6 @@ def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
                 detail="User account is disabled"
             )
         
-        if not authenticated_user.email_verified:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Email not verified. Please verify your email first."
-            )
-        
         # Log successful DB user login
         log_login_attempt(data.email, ip_address, True, db)
     

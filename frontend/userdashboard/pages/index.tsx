@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useUser } from '../src/context/UserContext';
 import { login } from '../src/services/api';
@@ -21,14 +21,20 @@ export default function LoginPage() {
       setToken(res.access_token);
       router.push('/dashboard');
     } catch (err: any) {
-      setError('Invalid email or password');
+      const detail = err?.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : 'Invalid email or password');
     } finally {
       setLoading(false);
     }
   };
 
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  // Hydration fix: Only set greeting on client
+  const [greeting, setGreeting] = useState('');
+  useEffect(() => {
+    const hour = new Date().getHours();
+    const g = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+    setGreeting(g);
+  }, []);
 
   return (
     <div
@@ -250,6 +256,22 @@ export default function LoginPage() {
               </div>
             </div>
 
+            {/* Forgot password link */}
+            <div style={{ textAlign: 'right', marginTop: -4 }}>
+              <a
+                href="/forgot-password"
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: 'var(--color-text-secondary, #555555)',
+                  textDecoration: 'underline',
+                  textUnderlineOffset: '3px',
+                }}
+              >
+                Forgot your password?
+              </a>
+            </div>
+
             {/* Submit */}
             <button
               type="submit"
@@ -308,6 +330,29 @@ export default function LoginPage() {
             }}
           >
             Protected by SentinelIQ Security
+          </p>
+
+          {/* Register link */}
+          <p
+            style={{
+              textAlign: 'center',
+              fontSize: 13,
+              color: 'var(--color-text-secondary, #555555)',
+              marginTop: '0.8rem',
+            }}
+          >
+            Don't have an account?{' '}
+            <a
+              href="/register"
+              style={{
+                color: 'var(--color-text, #111111)',
+                fontWeight: 700,
+                textDecoration: 'underline',
+                textUnderlineOffset: '3px',
+              }}
+            >
+              Register
+            </a>
           </p>
         </div>
 

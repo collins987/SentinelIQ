@@ -81,11 +81,11 @@ export default function UserDashboardLayout() {
           {/* Navigation */}
           <nav className="flex-1 px-3 py-4">
             <a
-              href="/my-dashboard"
+              href="/overview"
               className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-sentinel-600/20 text-white border-l-2 border-sentinel-500"
             >
               <UserCircleIcon className="h-5 w-5 flex-shrink-0" />
-              <span className="text-sm font-medium">My Dashboard</span>
+              <span className="text-sm font-medium">Overview</span>
             </a>
           </nav>
 

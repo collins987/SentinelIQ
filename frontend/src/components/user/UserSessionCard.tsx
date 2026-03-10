@@ -40,14 +40,23 @@ export default function UserSessionCard({ session, isLoading }: UserSessionCardP
     }
   };
 
-  const parseDeviceInfo = (deviceInfo: string | null) => {
+  const parseDeviceInfo = (deviceInfo: unknown) => {
     if (!deviceInfo) return 'Unknown device';
+    // If it's an object (e.g. from backend JSON), stringify or extract user_agent
+    let info: string;
+    if (typeof deviceInfo === 'object') {
+      const obj = deviceInfo as Record<string, unknown>;
+      info = (obj.user_agent || obj.device || obj.browser || JSON.stringify(deviceInfo)) as string;
+    } else {
+      info = String(deviceInfo);
+    }
+    if (!info) return 'Unknown device';
     // Simplify user agent string
-    if (deviceInfo.includes('Chrome')) return 'Chrome Browser';
-    if (deviceInfo.includes('Firefox')) return 'Firefox Browser';
-    if (deviceInfo.includes('Safari')) return 'Safari Browser';
-    if (deviceInfo.includes('Edge')) return 'Edge Browser';
-    return deviceInfo.length > 30 ? `${deviceInfo.slice(0, 30)}...` : deviceInfo;
+    if (info.includes('Chrome')) return 'Chrome Browser';
+    if (info.includes('Firefox')) return 'Firefox Browser';
+    if (info.includes('Safari')) return 'Safari Browser';
+    if (info.includes('Edge')) return 'Edge Browser';
+    return info.length > 30 ? `${info.slice(0, 30)}...` : info;
   };
 
   const SessionItem = ({

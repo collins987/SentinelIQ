@@ -240,7 +240,24 @@ export const dashboardApi = createApi({
       providesTags: ['Metrics'],
     }),
 
-    // Active Users
+    // All Users (for Users tab — includes all users regardless of session state)
+    getAllUsers: builder.query<
+      ActiveUsersResponse & { users: (ActiveUser & { is_active?: boolean; email_verified?: boolean; created_at?: string | null })[] },
+      { page?: number; page_size?: number; sort_by?: string; role?: string; search?: string }
+    >({
+      query: ({ page = 1, page_size = 20, sort_by = 'created_at', role, search }) => {
+        const params = new URLSearchParams();
+        params.append('page', String(page));
+        params.append('page_size', String(page_size));
+        params.append('sort_by', sort_by);
+        if (role) params.append('role', role);
+        if (search) params.append('search', search);
+        return `/users/all?${params.toString()}`;
+      },
+      providesTags: ['Users'],
+    }),
+
+    // Active Users (users with active sessions only)
     getActiveUsers: builder.query<
       ActiveUsersResponse,
       { page?: number; page_size?: number; sort_by?: string }
@@ -346,6 +363,7 @@ export const dashboardApi = createApi({
 export const {
   useGetSystemHealthQuery,
   useGetSystemMetricsQuery,
+  useGetAllUsersQuery,
   useGetActiveUsersQuery,
   useGetUserStatsQuery,
   useGetUserDetailQuery,

@@ -199,6 +199,83 @@ async def get_system_metrics(
 # User Monitoring Endpoints
 # =============================================================================
 
+@router.get("/users/all")
+async def get_all_users(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    sort_by: str = Query("created_at", regex="^(created_at|login_time|risk_score|email)$"),
+    role: Optional[str] = Query(None, regex="^(admin|analyst|viewer)$"),
+    search: Optional[str] = Query(None),
+    current_user: User = Depends(require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Get ALL users with optional filtering by role and search.
+    
+    This endpoint is used by the Admin Dashboard Users tab to display
+    every user in the system (not just those with active sessions).
+    """
+    query = db.query(User).filter(User.is_system_user == False)
+
+    # Role filter
+    if role:
+        query = query.filter(User.role == role)
+
+    # Search filter (email, first_name, last_name)
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(
+            or_(
+                User.email.ilike(search_term),
+                User.first_name.ilike(search_term),
+                User.last_name.ilike(search_term),
+            )
+        )
+
+    total = query.count()
+
+    # Sort
+    if sort_by == "login_time":
+        query = query.order_by(desc(User.last_login_at))
+    elif sort_by == "risk_score":
+        query = query.order_by(desc(User.risk_score))
+    elif sort_by == "email":
+        query = query.order_by(User.email)
+    else:
+        query = query.order_by(desc(User.created_at))
+
+    # Paginate
+    offset = (page - 1) * page_size
+    users = query.offset(offset).limit(page_size).all()
+
+    return {
+        "users": [
+            {
+                "id": u.id,
+                "email": u.email,
+                "first_name": u.first_name,
+                "last_name": u.last_name,
+                "role": u.role,
+                "login_time": u.last_login_at.isoformat() if u.last_login_at else None,
+                "ip_address": u.last_login_ip,
+                "risk_score": u.risk_score,
+                "status": u.status or "active",
+                "is_active": u.is_active,
+                "email_verified": u.email_verified,
+                "org_id": u.org_id,
+                "created_at": u.created_at.isoformat() if u.created_at else None,
+            }
+            for u in users
+        ],
+        "pagination": {
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "total_pages": (total + page_size - 1) // page_size,
+        },
+    }
+
+
 @router.get("/users/active")
 async def get_active_users(
     page: int = Query(1, ge=1),

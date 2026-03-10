@@ -66,6 +66,11 @@ SMTP_TLS = os.getenv("SMTP_TLS", "false").lower() == "true"
 # Frontend configuration for email links
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000")
 
+# Role-specific frontend URLs for password reset routing
+ADMIN_FRONTEND_URL = os.getenv("ADMIN_FRONTEND_URL", "http://localhost:3000")
+ANALYST_FRONTEND_URL = os.getenv("ANALYST_FRONTEND_URL", "http://localhost:4100")
+VIEWER_FRONTEND_URL = os.getenv("VIEWER_FRONTEND_URL", "http://localhost:4000")
+
 # MILESTONE 7: Role-Based Access Control (RBAC)
 # Role hierarchy: admin > analyst > viewer
 ROLES = {

@@ -5,6 +5,7 @@
  */
 
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAppSelector } from '../store/hooks';
 import { useGetUserDashboardQuery } from '../services/userApi';
 import {
@@ -22,6 +23,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 export default function UserDashboard() {
+  const navigate = useNavigate();
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   
   // Get auth state for user info
@@ -158,11 +160,14 @@ export default function UserDashboard() {
             <p className="text-xs text-gray-400">Coming soon</p>
           </div>
 
-          <div className="p-4 rounded-lg bg-gray-800/50 border border-gray-700 text-left opacity-50 cursor-not-allowed">
+          <button
+            onClick={() => navigate('/change-password')}
+            className="p-4 rounded-lg bg-gray-800/50 hover:bg-gray-800 border border-gray-700 hover:border-purple-500/50 transition-colors text-left"
+          >
             <ShieldCheckIcon className="w-6 h-6 text-purple-400 mb-2" />
             <p className="text-sm font-medium text-white">Change Password</p>
-            <p className="text-xs text-gray-400">Coming soon</p>
-          </div>
+            <p className="text-xs text-gray-400">Update your password</p>
+          </button>
         </div>
       </div>
 

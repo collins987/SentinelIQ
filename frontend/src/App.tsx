@@ -1,7 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAppSelector } from './store/hooks';
 import DashboardLayout from './layouts/DashboardLayout';
-import UserDashboardLayout from './layouts/UserDashboardLayout';
 import Login from './pages/Login';
 import Overview from './pages/Overview';
 import Users from './pages/Users';
@@ -10,11 +9,15 @@ import RiskCenter from './pages/RiskCenter';
 import AuditLogs from './pages/AuditLogs';
 import ActivityFeed from './pages/ActivityFeed';
 import SystemHealth from './pages/SystemHealth';
-import UserDashboard from './pages/UserDashboard';
+
 import Governance from './pages/Governance';
 import Enforcement from './pages/Enforcement';
 import IdentityAccess from './pages/IdentityAccess';
 import Compliance from './pages/Compliance';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
+import ChangePassword from './pages/ChangePassword';
+import Register from './pages/Register';
 
 // Protected Route wrapper - checks authentication
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -35,9 +38,9 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />;
   }
   
-  // If not admin, redirect to user dashboard
+  // If not admin, redirect to login (non-admins should use their own dashboard apps)
   if (user?.role !== 'admin') {
-    return <Navigate to="/my-dashboard" replace />;
+    return <Navigate to="/login" replace />;
   }
   
   return <>{children}</>;
@@ -48,28 +51,16 @@ function App() {
   
   // Determine default route based on user role
   const getDefaultRoute = () => {
-    if (user?.role === 'admin') {
-      return '/overview';
-    }
-    return '/my-dashboard';
+    return '/overview';
   };
 
   return (
     <Routes>
       {/* Public routes */}
       <Route path="/login" element={<Login />} />
-      
-      {/* User Dashboard - accessible by all authenticated users */}
-      <Route
-        path="/my-dashboard"
-        element={
-          <ProtectedRoute>
-            <UserDashboardLayout />
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<UserDashboard />} />
-      </Route>
+      <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       
       {/* Admin Protected dashboard routes */}
       <Route
@@ -92,6 +83,7 @@ function App() {
         <Route path="enforcement" element={<Enforcement />} />
         <Route path="iam" element={<IdentityAccess />} />
         <Route path="compliance" element={<Compliance />} />
+        <Route path="change-password" element={<ChangePassword />} />
       </Route>
       
       {/* Catch all - redirect to appropriate dashboard */}

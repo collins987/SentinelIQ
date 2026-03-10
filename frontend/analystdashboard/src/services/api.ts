@@ -115,14 +115,33 @@ export interface SearchResult {
 // ═══════════════════════════════════════════════════════════════
 
 export async function loginAnalyst(email: string, password: string) {
-  const base = process.env.NEXT_PUBLIC_AUTH_URL || 'http://localhost:8000/users';
+  const base = process.env.NEXT_PUBLIC_AUTH_URL || 'http://localhost:8000';
   const res = await axios.post(`${base}/auth/login`, { email, password });
   return res.data;
 }
 
+export async function registerAnalyst(
+  first_name: string,
+  last_name: string,
+  email: string,
+  password: string,
+  org_id?: string
+) {
+  const base = process.env.NEXT_PUBLIC_AUTH_URL || 'http://localhost:8000';
+  const res = await axios.post(`${base}/auth/register`, {
+    first_name,
+    last_name,
+    email,
+    password,
+    role: 'analyst',
+    ...(org_id ? { org_id } : {}),
+  });
+  return res.data;
+}
+
 export async function getProfile(token: string) {
-  const base = process.env.NEXT_PUBLIC_AUTH_URL || 'http://localhost:8000/users';
-  const res = await axios.get(`${base}/profile`, { headers: headers(token) });
+  const base = process.env.NEXT_PUBLIC_AUTH_URL || 'http://localhost:8000';
+  const res = await axios.get(`${base}/auth/me`, { headers: headers(token) });
   return res.data;
 }
 
@@ -318,6 +337,30 @@ export async function search(
   const res = await axios.get(`${API_BASE}/search`, {
     headers: headers(token),
     params: { q: query, limit },
+  });
+  return res.data;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Password Management
+// ═══════════════════════════════════════════════════════════════
+
+export async function requestPasswordReset(email: string) {
+  const base = process.env.NEXT_PUBLIC_AUTH_URL || 'http://localhost:8000';
+  const res = await axios.post(`${base}/auth/password-reset/request`, { email });
+  return res.data;
+}
+
+export async function confirmPasswordReset(token: string, new_password: string) {
+  const base = process.env.NEXT_PUBLIC_AUTH_URL || 'http://localhost:8000';
+  const res = await axios.post(`${base}/auth/password-reset/confirm`, { token, new_password });
+  return res.data;
+}
+
+export async function changePassword(authToken: string, current_password: string, new_password: string) {
+  const base = process.env.NEXT_PUBLIC_AUTH_URL || 'http://localhost:8000';
+  const res = await axios.post(`${base}/auth/change-password`, { current_password, new_password }, {
+    headers: headers(authToken),
   });
   return res.data;
 }

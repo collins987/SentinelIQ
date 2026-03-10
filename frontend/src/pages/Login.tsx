@@ -1,5 +1,5 @@
 import { useState, FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAppDispatch } from '../store/hooks';
 import { setCredentials, setLoading } from '../features/authSlice';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
@@ -78,11 +78,12 @@ export default function Login() {
         user: user,
       }));
       
-      // Route based on user role
+      // Route based on user role — only admins use this dashboard
       if (user.role === 'admin') {
         navigate('/overview');
       } else {
-        navigate('/my-dashboard');
+        // Non-admins should use their own dashboard apps
+        navigate('/login');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred during login');
@@ -171,7 +172,28 @@ export default function Login() {
             </button>
           </form>
           
-          <p className="mt-6 text-center text-sm text-gray-400">
+          <div className="mt-4 text-center">
+            <Link
+              to="/forgot-password"
+              className="text-sm text-sentinel-400 hover:text-sentinel-300 transition-colors"
+            >
+              Forgot your password?
+            </Link>
+          </div>
+
+          <div className="mt-3 text-center">
+            <p className="text-sm text-gray-400">
+              Don't have an account?{' '}
+              <Link
+                to="/register"
+                className="text-sentinel-400 hover:text-sentinel-300 font-medium transition-colors"
+              >
+                Register
+              </Link>
+            </p>
+          </div>
+
+          <p className="mt-4 text-center text-sm text-gray-400">
             Protected by SentinelIQ Security
           </p>
         </div>

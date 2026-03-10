@@ -43,9 +43,10 @@ const adminNavigation: NavItem[] = [
   { name: 'Compliance', href: '/compliance', icon: ClipboardDocumentListIcon, section: 'admin' },
 ];
 
-// User navigation items
+// User navigation items (non-admins should not access this dashboard,
+// but provide a sensible fallback pointing to the admin overview)
 const userNavigation: NavItem[] = [
-  { name: 'My Dashboard', href: '/my-dashboard', icon: UserCircleIcon },
+  { name: 'Overview', href: '/overview', icon: HomeIcon },
 ];
 
 export default function Sidebar({ collapsed }: SidebarProps) {

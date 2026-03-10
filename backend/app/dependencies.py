@@ -149,13 +149,30 @@ def get_current_user(
             detail="Account has been disabled",
         )
 
-    if not user.email_verified:
+    return user
+
+
+# ============================================================================
+# Email Verification Guard (for sensitive operations)
+# ============================================================================
+
+def require_verified_email(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """
+    Dependency that requires the user's email to be verified.
+    Use on sensitive endpoints (financial ops, settings changes, etc.).
+    Basic dashboard / profile access should NOT require this.
+    """
+    if getattr(current_user, "is_virtual", False):
+        return current_user  # Virtual users are always "verified"
+
+    if not current_user.email_verified:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Email not verified. Please verify your email to continue.",
         )
-
-    return user
+    return current_user
 
 
 # ============================================================================

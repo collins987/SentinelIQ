@@ -297,8 +297,13 @@ class PIIScrubberMiddleware(BaseHTTPMiddleware):
             
             logger.error(f"Request failed: {scrubbed_msg}")
             
-            # Re-raise with scrubbed message
-            raise type(exc)(scrubbed_msg) from None
+            # Re-raise the original exception intact.
+            # Many exception classes (e.g. SQLAlchemy DBAPIError) have
+            # multi-arg constructors, so `type(exc)(scrubbed_msg)` would
+            # fail with a TypeError.  The PII scrubbing already happened
+            # in the log line above; the original exception propagates to
+            # FastAPI's exception handlers which return a safe JSON body.
+            raise
 
 
 def scrub_log_record(record: logging.LogRecord) -> logging.LogRecord:

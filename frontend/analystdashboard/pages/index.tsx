@@ -66,6 +66,34 @@ export default function LoginPage() {
           <button type="submit" disabled={loading} className="login-btn">
             {loading ? 'Authenticating...' : 'Sign In'}
           </button>
+
+          <div style={{ textAlign: 'center', marginTop: 8 }}>
+            <a
+              href="/forgot-password"
+              style={{
+                fontSize: 12,
+                color: 'var(--text-muted)',
+                textDecoration: 'underline',
+                textUnderlineOffset: '3px',
+              }}
+            >
+              Forgot your password?
+            </a>
+          </div>
+
+          <div style={{ textAlign: 'center', marginTop: 4 }}>
+            <a
+              href="/register"
+              style={{
+                fontSize: 12,
+                color: 'var(--text-muted)',
+                textDecoration: 'underline',
+                textUnderlineOffset: '3px',
+              }}
+            >
+              Don't have an account? Register
+            </a>
+          </div>
         </form>
 
         <div className="login-footer">

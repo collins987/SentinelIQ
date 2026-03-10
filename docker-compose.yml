@@ -17,6 +17,9 @@ services:
       - .env
     environment:
       SMTP_HOST: mailhog
+      ADMIN_FRONTEND_URL: ${ADMIN_FRONTEND_URL:-http://localhost:3000}
+      ANALYST_FRONTEND_URL: ${ANALYST_FRONTEND_URL:-http://localhost:4100}
+      VIEWER_FRONTEND_URL: ${VIEWER_FRONTEND_URL:-http://localhost:4000}
     depends_on:
       postgres:
         condition: service_healthy
