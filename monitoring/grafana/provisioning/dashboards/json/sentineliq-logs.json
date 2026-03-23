@@ -1,0 +1,194 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "📋 Log Volume & Overview",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" } },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 1 },
+      "id": 1,
+      "title": "Log Volume by Service",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(count_over_time({compose_service=~\".+\"}[1m])) by (compose_service)", "legendFormat": "{{compose_service}}", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" } },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 7 },
+      "id": 2,
+      "title": "Error Log Volume",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(count_over_time({compose_service=~\".+\"} |~ \"(?i)(error|exception|critical|fatal)\"[1m])) by (compose_service)", "legendFormat": "{{compose_service}}", "refId": "A" }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 },
+      "id": 101,
+      "title": "🔑 API Logs",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 14 },
+      "id": 10,
+      "title": "API Application Logs",
+      "type": "logs",
+      "options": { "showTime": true, "showLabels": true, "showCommonLabels": false, "wrapLogMessage": true, "prettifyLogMessage": false, "enableLogDetails": true, "sortOrder": "Descending", "dedupStrategy": "none" },
+      "targets": [
+        { "expr": "{compose_service=\"api\"} | json | line_format \"{{.level}} {{.method}} {{.path}} {{.status_code}} ({{.duration_ms}}ms) user={{.user_id}}\"", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
+      "id": 11,
+      "title": "API Error Logs",
+      "type": "logs",
+      "options": { "showTime": true, "showLabels": false, "wrapLogMessage": true, "enableLogDetails": true, "sortOrder": "Descending" },
+      "targets": [
+        { "expr": "{compose_service=\"api\"} |~ \"(?i)(error|exception|traceback|critical)\"", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 26 },
+      "id": 12,
+      "title": "API Requests by Path (Top 10)",
+      "type": "barchart",
+      "targets": [
+        { "expr": "topk(10, sum by (path) (count_over_time({compose_service=\"api\"} | json | path != \"\" [$__range])))", "legendFormat": "{{path}}", "refId": "A" }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 },
+      "id": 102,
+      "title": "📨 Kafka Logs",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 35 },
+      "id": 20,
+      "title": "Kafka Broker Logs",
+      "type": "logs",
+      "options": { "showTime": true, "showLabels": false, "wrapLogMessage": true, "enableLogDetails": true, "sortOrder": "Descending" },
+      "targets": [
+        { "expr": "{compose_service=\"kafka\"}", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 45 },
+      "id": 21,
+      "title": "Kafka Errors & Warnings",
+      "type": "logs",
+      "options": { "showTime": true, "showLabels": false, "wrapLogMessage": true, "enableLogDetails": true, "sortOrder": "Descending" },
+      "targets": [
+        { "expr": "{compose_service=\"kafka\"} |~ \"(?i)(error|warn|exception)\"", "refId": "A" }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 53 },
+      "id": 103,
+      "title": "🗄️ Database & Storage Logs",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 54 },
+      "id": 30,
+      "title": "PostgreSQL Logs",
+      "type": "logs",
+      "options": { "showTime": true, "showLabels": false, "wrapLogMessage": true, "enableLogDetails": true, "sortOrder": "Descending" },
+      "targets": [
+        { "expr": "{compose_service=\"postgres\"}", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 54 },
+      "id": 31,
+      "title": "Redis Logs",
+      "type": "logs",
+      "options": { "showTime": true, "showLabels": false, "wrapLogMessage": true, "enableLogDetails": true, "sortOrder": "Descending" },
+      "targets": [
+        { "expr": "{compose_service=\"redis\"}", "refId": "A" }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 64 },
+      "id": 104,
+      "title": "🔒 Vault & Security Logs",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 65 },
+      "id": 40,
+      "title": "Vault Audit Trail",
+      "type": "logs",
+      "options": { "showTime": true, "showLabels": false, "wrapLogMessage": true, "enableLogDetails": true, "sortOrder": "Descending" },
+      "targets": [
+        { "expr": "{compose_service=\"vault\"}", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 75 },
+      "id": 41,
+      "title": "Security Events (auth failures, denied, blocked)",
+      "type": "logs",
+      "options": { "showTime": true, "showLabels": true, "wrapLogMessage": true, "enableLogDetails": true, "sortOrder": "Descending" },
+      "targets": [
+        { "expr": "{compose_service=~\".+\"} |~ \"(?i)(unauthorized|forbidden|denied|blocked|invalid.?token|auth.?fail)\"", "refId": "A" }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["sentineliq", "logs", "loki"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "Loki", "value": "Loki" },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Loki",
+        "multi": false,
+        "name": "DS_LOKI",
+        "options": [],
+        "query": "loki",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "SentinelIQ Logs Explorer",
+  "uid": "sentineliq-logs",
+  "version": 1
+}

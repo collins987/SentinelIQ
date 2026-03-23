@@ -1,0 +1,402 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "🔑 API Performance",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.5 }, { "color": "red", "value": 1 }] },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "id": 1,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "title": "API Request Latency (p50 / p95 / p99)",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p99", "refId": "C" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "reqps" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "id": 2,
+      "title": "API Request Rate (req/s)",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(rate(http_requests_total[5m]))", "legendFormat": "Total", "refId": "A" },
+        { "expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m]))", "legendFormat": "5xx Errors", "refId": "B" },
+        { "expr": "sum(rate(http_requests_total{status=~\"4..\"}[5m]))", "legendFormat": "4xx Errors", "refId": "C" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 95 }, { "color": "red", "value": 99 }] }, "unit": "percent", "min": 0, "max": 100 },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 9 },
+      "id": 3,
+      "title": "API Availability",
+      "type": "gauge",
+      "targets": [
+        { "expr": "100 * (1 - sum(rate(http_requests_total{status=~\"5..\"}[1h])) / sum(rate(http_requests_total[1h])))", "legendFormat": "", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "short" } },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 9 },
+      "id": 4,
+      "title": "Active HTTP Connections",
+      "type": "stat",
+      "targets": [
+        { "expr": "sum(http_requests_in_progress)", "legendFormat": "", "refId": "A" }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 },
+      "id": 101,
+      "title": "📨 Kafka Event Pipeline",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "id": 10,
+      "title": "Kafka Events Processed (by topic & status)",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(rate(kafka_events_processed_total[5m])) by (topic, status)", "legendFormat": "{{topic}} ({{status}})", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "id": 11,
+      "title": "Kafka Consumer Group Lag",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(kafka_consumergroup_lag) by (consumergroup, topic)", "legendFormat": "{{consumergroup}} / {{topic}}", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }, "unit": "short" } },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 22 },
+      "id": 12,
+      "title": "DLQ Events (Dead Letter Queue)",
+      "type": "stat",
+      "targets": [
+        { "expr": "sum(kafka_events_dlq_total)", "legendFormat": "Total DLQ", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" } },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 22 },
+      "id": 13,
+      "title": "Onboarding Pipeline (by consumer)",
+      "type": "stat",
+      "targets": [
+        { "expr": "sum(sentineliq_onboarding_events_processed_total) by (consumer, status)", "legendFormat": "{{consumer}}: {{status}}", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } } },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 22 },
+      "id": 14,
+      "title": "CDC Events Processed",
+      "type": "stat",
+      "targets": [
+        { "expr": "sum(cdc_events_processed_total) by (status)", "legendFormat": "{{status}}", "refId": "A" }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 },
+      "id": 102,
+      "title": "🔒 Vault Secrets & Encryption",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" } },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 27 },
+      "id": 20,
+      "title": "Vault Crypto Operations",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(rate(vault_crypto_ops_total[5m])) by (action)", "legendFormat": "{{action}}", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" } },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 27 },
+      "id": 21,
+      "title": "Vault Secret Access",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(rate(vault_secret_access_total[5m])) by (action)", "legendFormat": "{{action}}", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 300 }, { "color": "green", "value": 3600 }] },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 27 },
+      "id": 22,
+      "title": "Vault Token TTL",
+      "type": "gauge",
+      "targets": [
+        { "expr": "vault_token_ttl_seconds", "legendFormat": "TTL", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } } },
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 35 },
+      "id": 23,
+      "title": "Vault Errors",
+      "type": "stat",
+      "targets": [
+        { "expr": "sum(vault_errors_total) by (action)", "legendFormat": "{{action}}", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 35 },
+      "id": 24,
+      "title": "Vault Token Renewals",
+      "type": "stat",
+      "targets": [
+        { "expr": "vault_token_renewals_total", "legendFormat": "Renewals", "refId": "A" }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 39 },
+      "id": 103,
+      "title": "⚡ Redis Streams & Rate Limiting",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "id": 30,
+      "title": "Redis Stream Events Processed",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(rate(redis_events_processed_total[5m])) by (stream, status)", "legendFormat": "{{stream}} ({{status}})", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "id": 31,
+      "title": "Redis Consumer Lag",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "redis_consumer_lag", "legendFormat": "{{stream}} / {{group}}", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } } },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 48 },
+      "id": 32,
+      "title": "Redis DLQ Events",
+      "type": "stat",
+      "targets": [
+        { "expr": "sum(redis_events_dlq_total)", "legendFormat": "DLQ Total", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } } },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 48 },
+      "id": 33,
+      "title": "Redis Stream Errors",
+      "type": "stat",
+      "targets": [
+        { "expr": "sum(redis_stream_errors_total) by (action)", "legendFormat": "{{action}}", "refId": "A" }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 52 },
+      "id": 104,
+      "title": "🗄️ Database & Storage",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 53 },
+      "id": 40,
+      "title": "PostgreSQL Active Connections",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "pg_stat_activity_count", "legendFormat": "{{datname}} ({{state}})", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "bytes" } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 53 },
+      "id": 41,
+      "title": "PostgreSQL Database Size",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "pg_database_size_bytes", "legendFormat": "{{datname}}", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "bytes" } },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 61 },
+      "id": 42,
+      "title": "Redis Memory Usage",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "redis_memory_used_bytes", "legendFormat": "Used", "refId": "A" },
+        { "expr": "redis_memory_max_bytes", "legendFormat": "Max", "refId": "B" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "bytes" } },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 61 },
+      "id": 43,
+      "title": "MinIO Disk Storage",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "minio_cluster_capacity_usable_total_bytes", "legendFormat": "Total", "refId": "A" },
+        { "expr": "minio_cluster_capacity_usable_free_bytes", "legendFormat": "Free", "refId": "B" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 61 },
+      "id": 44,
+      "title": "MinIO Total Objects",
+      "type": "stat",
+      "targets": [
+        { "expr": "minio_cluster_objects_count", "legendFormat": "Objects", "refId": "A" }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 69 },
+      "id": 105,
+      "title": "📊 Infrastructure Health",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] },
+          "mappings": [{ "options": { "0": { "text": "DOWN" }, "1": { "text": "UP" } }, "type": "value" }]
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 70 },
+      "id": 50,
+      "title": "Service Health Status",
+      "type": "table",
+      "targets": [
+        { "expr": "up", "legendFormat": "{{job}}", "refId": "A", "format": "table", "instant": true }
+      ],
+      "transformations": [
+        { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true }, "renameByName": { "job": "Service", "Value": "Status" } } }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 76 },
+      "id": 51,
+      "title": "Loki Ingestion Rate",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(rate(loki_distributor_bytes_received_total[5m]))", "legendFormat": "Bytes/s ingested", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 76 },
+      "id": 52,
+      "title": "Prometheus Scrape Duration",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "scrape_duration_seconds", "legendFormat": "{{job}}", "refId": "A" }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["sentineliq", "operations", "infrastructure"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "Prometheus", "value": "Prometheus" },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Prometheus",
+        "multi": false,
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "SentinelIQ Operations",
+  "uid": "sentineliq-ops",
+  "version": 1
+}

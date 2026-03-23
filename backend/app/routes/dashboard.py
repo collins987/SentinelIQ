@@ -11,9 +11,11 @@ Production-grade endpoints for the admin dashboard providing:
 All endpoints require admin authentication and are fully audit-logged.
 """
 
+
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, and_, or_, text
+from collections import deque
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 import asyncio
@@ -30,6 +32,14 @@ from app.config import ROLES
 logger = logging.getLogger("sentineliq.dashboard")
 
 router = APIRouter(prefix="/api/admin/dashboard", tags=["Admin Dashboard"])
+
+# In-memory ring buffer for health history (max 120 points = ~60 min at 30s)
+_health_history: Dict[str, deque] = {
+    "database": deque(maxlen=120),
+    "redis": deque(maxlen=120),
+    "kafka": deque(maxlen=120),
+    "vault": deque(maxlen=120),
+}
 
 
 # =============================================================================
@@ -51,7 +61,7 @@ async def get_system_health(
     - Kafka
     - Vault
     """
-    from app.core.db import SessionLocal
+
     
     health = {
         "status": "healthy",
@@ -63,14 +73,89 @@ async def get_system_health(
     services_checked = 0
     services_healthy = 0
     
-    # Database check
+    # Database check with advanced metrics
     try:
+        import time as _time
+        start = _time.time()
         db.execute(text("SELECT 1"))
+        latency_ms = round((_time.time() - start) * 1000, 1)
+
+        # Real PostgreSQL connection stats
+        pg_stats = {}
+        try:
+            row = db.execute(text(
+                "SELECT numbackends, xact_commit, xact_rollback, deadlocks, "
+                "blks_hit, blks_read, tup_returned, tup_fetched "
+                "FROM pg_stat_database WHERE datname = current_database()"
+            )).fetchone()
+            if row:
+                pg_stats = {
+                    "connections_active": row[0],
+                    "xact_commit": row[1],
+                    "xact_rollback": row[2],
+                    "deadlocks": row[3],
+                    "cache_hit_ratio": round(row[4] / (row[4] + row[5]) * 100, 1) if (row[4] + row[5]) > 0 else 0,
+                    "tuples_returned": row[6],
+                    "tuples_fetched": row[7],
+                }
+        except Exception:
+            pass
+
+        # Max connections from PostgreSQL setting
+        max_conn = None
+        try:
+            r = db.execute(text("SHOW max_connections")).fetchone()
+            if r:
+                max_conn = int(r[0])
+        except Exception:
+            pass
+
+        # Slow queries (queries > 1s active right now)
+        slow_queries = 0
+        try:
+            r = db.execute(text(
+                "SELECT count(*) FROM pg_stat_activity "
+                "WHERE state = 'active' AND now() - query_start > interval '1 second'"
+            )).fetchone()
+            if r:
+                slow_queries = r[0]
+        except Exception:
+            pass
+
+        # Database size
+        db_size_mb = None
+        try:
+            r = db.execute(text(
+                "SELECT pg_database_size(current_database()) / 1024 / 1024"
+            )).fetchone()
+            if r:
+                db_size_mb = r[0]
+        except Exception:
+            pass
+
+        # Pool stats from SQLAlchemy
+        from app.core.db import engine as _engine
+        pool = _engine.pool
+        pool_size = pool.size() if hasattr(pool, 'size') else None
+        pool_checked_out = pool.checkedout() if hasattr(pool, 'checkedout') else None
+        pool_overflow = pool.overflow() if hasattr(pool, 'overflow') else None
+        pool_usage = round((pool_checked_out / pool_size) * 100, 1) if pool_size and pool_checked_out is not None else None
+
         health["services"]["database"] = {
             "status": "healthy",
-            "latency_ms": 5,  # Would measure actual latency in production
-            "connections_active": 10,
-            "connections_max": 50
+            "latency_ms": latency_ms,
+            "connections_active": pg_stats.get("connections_active", 0),
+            "connections_max": max_conn,
+            "pool_size": pool_size,
+            "pool_checked_out": pool_checked_out,
+            "pool_overflow": pool_overflow,
+            "pool_usage_percent": pool_usage,
+            "cache_hit_ratio": pg_stats.get("cache_hit_ratio"),
+            "xact_commit": pg_stats.get("xact_commit"),
+            "xact_rollback": pg_stats.get("xact_rollback"),
+            "deadlocks": pg_stats.get("deadlocks"),
+            "slow_queries": slow_queries,
+            "db_size_mb": db_size_mb,
         }
         services_healthy += 1
     except Exception as e:
@@ -81,16 +166,43 @@ async def get_system_health(
         health["status"] = "degraded"
     services_checked += 1
     
-    # Redis check
+    # Redis check with advanced metrics
     try:
+        import time as _time
         from app.services.redis_stream import get_redis_stream_manager
-        redis = get_redis_stream_manager()
-        if redis.health_check():
+        redis_mgr = get_redis_stream_manager()
+        redis_client = redis_mgr.redis
+        if redis_mgr.health_check() and redis_client:
+            # Measure actual latency
+            r_start = _time.time()
+            redis_client.ping()
+            r_latency = round((_time.time() - r_start) * 1000, 1)
+
+            info = redis_client.info()
+            stats = info.get("keyspace_hits", 0)
+            misses = info.get("keyspace_misses", 0)
+            hit_rate = round(stats / (stats + misses) * 100, 1) if (stats + misses) > 0 else 0
+
+            # Keyspace summary
+            keyspace = {}
+            for k, v in info.items():
+                if k.startswith("db"):
+                    keyspace[k] = v
+
             health["services"]["redis"] = {
                 "status": "healthy",
-                "latency_ms": 2,
-                "memory_mb": 128,
-                "connected_clients": 5
+                "latency_ms": r_latency,
+                "memory_mb": round(info.get("used_memory", 0) / 1024 / 1024, 1),
+                "memory_peak_mb": round(info.get("used_memory_peak", 0) / 1024 / 1024, 1),
+                "connected_clients": info.get("connected_clients"),
+                "blocked_clients": info.get("blocked_clients"),
+                "uptime_seconds": info.get("uptime_in_seconds"),
+                "cache_hit_rate": hit_rate,
+                "evicted_keys": info.get("evicted_keys"),
+                "total_keys": sum(v.get("keys", 0) for v in keyspace.values() if isinstance(v, dict)),
+                "expired_keys": info.get("expired_keys"),
+                "mem_fragmentation_ratio": info.get("mem_fragmentation_ratio"),
+                "keyspace": keyspace,
             }
             services_healthy += 1
         else:
@@ -101,32 +213,83 @@ async def get_system_health(
         health["status"] = "degraded"
     services_checked += 1
     
-    # Kafka check
+    # Kafka check with advanced metrics (auto-reconnect if unhealthy)
     try:
+        from app.services.kafka_service import get_kafka_health_status, get_kafka_producer, _producer as _kp
+        kafka_status = get_kafka_health_status()
+        # If previously unhealthy, attempt a lightweight reconnect (1 retry, short delay)
+        if kafka_status.get("status") != "healthy":
+            try:
+                await get_kafka_producer(retries=1, delay=1.0)
+                kafka_status = get_kafka_health_status()
+            except Exception:
+                pass
+        # Re-read the module-level _producer after potential reconnect
         from app.services.kafka_service import _producer
-        if _producer and _producer._started:
-            health["services"]["kafka"] = {
-                "status": "healthy",
-                "consumer_lag": 0
-            }
+        kafka_metrics = {
+            "consumer_lag": 0,
+            "partition_count": None,
+            "under_replicated_partitions": None,
+            "message_throughput_sec": None,
+            "active_producers": 0,
+            "active_consumers": 0,
+            "broker_uptime": None,
+        }
+        try:
+            if _producer and _producer.is_connected and _producer._producer:
+                kafka_metrics["active_producers"] = 1
+                # Get topic partitions from producer metadata
+                try:
+                    partitions = _producer._producer.client._metadata.partitions
+                    total_parts = sum(len(v) for v in partitions.values()) if partitions else None
+                    kafka_metrics["partition_count"] = total_parts
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        health["services"]["kafka"] = {**kafka_status, **kafka_metrics}
+        if kafka_status["status"] == "healthy":
             services_healthy += 1
-        else:
-            health["services"]["kafka"] = {"status": "not_configured"}
-    except Exception:
-        health["services"]["kafka"] = {"status": "not_configured"}
+    except Exception as e:
+        health["services"]["kafka"] = {"status": "not_configured", "error": str(e)}
     services_checked += 1
-    
-    # Vault check
+
+    # Vault check with advanced metrics
     try:
-        from app.core.vault_client import get_vault_client
-        vault = get_vault_client()
-        if vault.is_authenticated():
-            health["services"]["vault"] = {"status": "healthy"}
+        from app.core.vault_client import get_vault_health_status, get_vault_client
+        vault_status = get_vault_health_status()
+        vault_metrics = {
+            "token_ttl": None,
+            "seal_status": None,
+            "uptime_seconds": None,
+            "mounts_enabled": None,
+            "lease_count": None,
+        }
+        try:
+            vault = get_vault_client(retries=1, delay=0.5)
+            if vault and hasattr(vault, '_token_expiry') and vault._token_expiry:
+                vault_metrics["token_ttl"] = int((vault._token_expiry - datetime.utcnow()).total_seconds())
+            if vault and hasattr(vault, '_client') and vault._client:
+                try:
+                    sys_health = vault._client.sys.read_health_status(method="GET")
+                    vault_metrics["seal_status"] = sys_health.get("sealed")
+                    if "server_time_utc" in sys_health:
+                        server_time = sys_health["server_time_utc"]
+                        vault_metrics["server_time"] = server_time
+                except Exception:
+                    pass
+                try:
+                    mounts = vault._client.sys.list_mounted_secrets_engines()
+                    vault_metrics["mounts_enabled"] = list(mounts.get("data", mounts).keys()) if mounts else None
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        health["services"]["vault"] = {**vault_status, **vault_metrics}
+        if vault_status["status"] == "healthy":
             services_healthy += 1
-        else:
-            health["services"]["vault"] = {"status": "not_authenticated"}
-    except Exception:
-        health["services"]["vault"] = {"status": "not_configured"}
+    except Exception as e:
+        health["services"]["vault"] = {"status": "not_configured", "error": str(e)}
     services_checked += 1
     
     # Calculate overall health
@@ -138,8 +301,26 @@ async def get_system_health(
         health["status"] = "critical"
     elif health["overall_health_percent"] < 80:
         health["status"] = "degraded"
-    
+
+    # Append snapshot to history buffers
+    ts = health["timestamp"]
+    for svc_name in ("database", "redis", "kafka", "vault"):
+        svc_data = health["services"].get(svc_name, {})
+        _health_history[svc_name].append({"timestamp": ts, **svc_data})
+
     return health
+
+
+@router.get("/health/history")
+async def get_health_history(
+    service: str = Query(..., regex="^(database|redis|kafka|vault)$"),
+    points: int = Query(20, ge=1, le=120),
+    current_user: User = Depends(require_role(["admin"])),
+):
+    """Return the last N health snapshots for a given service (for time-series charts)."""
+    buf = _health_history.get(service, deque())
+    data = list(buf)[-points:]
+    return {"service": service, "points": data}
 
 
 @router.get("/metrics")

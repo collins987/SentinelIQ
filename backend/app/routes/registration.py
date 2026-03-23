@@ -203,7 +203,23 @@ async def register(data: RegisterRequest, request: Request, db: Session = Depend
     db.add(db_user)
     db.flush()  # get ID before commit
 
-    # ── 3. Audit log ──────────────────────────────────────────────────────
+    # ── 3a. Encrypt PII fields via Vault Transit ─────────────────────────
+    try:
+        from app.services.pii_encryption import encrypt_user_pii
+        pii = encrypt_user_pii(
+            user_id=db_user.id,
+            first_name=data.first_name.strip(),
+            last_name=data.last_name.strip(),
+            phone=getattr(data, "phone", None),
+        )
+        db_user.first_name = pii["first_name"]
+        db_user.last_name = pii["last_name"]
+        if pii["phone"]:
+            db_user.phone = pii["phone"]
+    except Exception as pii_err:
+        logger.warning(f"PII encryption skipped (non-blocking): {pii_err}")
+
+    # ── 3b. Audit log ─────────────────────────────────────────────────────
     audit = AuditLog(
         id=str(uuid.uuid4()),
         actor_id=db_user.id,

@@ -1,0 +1,25 @@
+# SentinelIQ Prometheus Recording Rules
+# Place this file in monitoring/rules/ and ensure prometheus.yml loads it
+
+groups:
+  - name: sentineliq-rules
+    rules:
+      # 1. API Request Rate (per service)
+      - record: sentineliq:api_requests_per_second
+        expr: sum(rate(http_requests_total{job="sentineliq-api"}[1m]))
+
+      # 2. Database Slow Queries
+      - record: sentineliq:db_slow_queries
+        expr: sum(rate(postgres_slow_queries_total[5m]))
+
+      # 3. Redis Hit Ratio
+      - record: sentineliq:redis_hit_ratio
+        expr: avg(redis_keyspace_hits) / (avg(redis_keyspace_hits) + avg(redis_keyspace_misses))
+
+      # 4. Kafka Consumer Lag
+      - record: sentineliq:kafka_consumer_lag
+        expr: sum(kafka_consumergroup_lag)
+
+      # 5. Vault Lease Count
+      - record: sentineliq:vault_lease_count
+        expr: max(sentineliq_vault_lease_count)

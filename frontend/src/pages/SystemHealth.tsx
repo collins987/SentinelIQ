@@ -1,7 +1,10 @@
+import { useState } from 'react';
 import { useGetSystemHealthQuery, useGetSystemMetricsQuery } from '../services/dashboardApi';
+import type { ServiceName } from '../services/dashboardApi';
 import { useAppSelector } from '../store/hooks';
 import { formatNumber } from '../utils/helpers';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import ServiceDetailPanel from '../components/health/ServiceDetailPanel';
 import clsx from 'clsx';
 import {
   ServerIcon,
@@ -12,13 +15,15 @@ import {
   ExclamationTriangleIcon,
   XCircleIcon,
   SignalIcon,
+  ChevronRightIcon,
 } from '@heroicons/react/24/outline';
 
 export default function SystemHealth() {
   const { selectedTimeRange } = useAppSelector((state) => state.dashboard);
   const { isAuthenticated } = useAppSelector((state) => state.auth);
+  const [selectedService, setSelectedService] = useState<ServiceName | null>(null);
   
-  const { data: health, isLoading: healthLoading, error: healthError } = useGetSystemHealthQuery(undefined, { skip: !isAuthenticated });
+  const { data: health, isLoading: healthLoading, error: healthError } = useGetSystemHealthQuery(undefined, { skip: !isAuthenticated, pollingInterval: 30000 });
   const { data: metrics, isLoading: metricsLoading } = useGetSystemMetricsQuery(selectedTimeRange, { skip: !isAuthenticated });
   
   const isLoading = healthLoading || metricsLoading;
@@ -130,75 +135,138 @@ export default function SystemHealth() {
         </div>
       </div>
       
-      {/* Services Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {health?.services && Object.entries(health.services).map(([name, service]) => {
-          const ServiceIcon = serviceIcons[name] || ServerIcon;
-          const isHealthy = service.status === 'healthy';
-          const isUnavailable = service.status === 'not_configured' || service.status === 'unavailable';
-          
+      {/* Services Grid - Detailed */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Database Card */}
+        {health?.services?.database && (() => {
+          const svc = health.services.database;
+          const isHealthy = svc.status === 'healthy';
+          const isUnavailable = svc.status === 'not_configured' || svc.status === 'unavailable';
           return (
-            <div key={name} className="card">
+            <button onClick={() => setSelectedService('database')} className="card text-left cursor-pointer hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-200 group">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                  <ServiceIcon className="h-5 w-5 text-gray-400" />
-                  <h3 className="font-medium text-white capitalize">{name}</h3>
+                  <CircleStackIcon className="h-5 w-5 text-blue-400" />
+                  <h3 className="font-medium text-white">Database</h3>
                 </div>
-                <span
-                  className={clsx(
-                    'w-3 h-3 rounded-full',
-                    isHealthy && 'bg-green-500 animate-pulse',
-                    isUnavailable && 'bg-gray-500',
-                    !isHealthy && !isUnavailable && 'bg-yellow-500 animate-pulse'
-                  )}
-                />
+                <span className={clsx('w-3 h-3 rounded-full', isHealthy && 'bg-green-500 animate-pulse', isUnavailable && 'bg-gray-500', !isHealthy && !isUnavailable && 'bg-yellow-500 animate-pulse')} />
               </div>
-              
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-400">Status</span>
-                  <span
-                    className={clsx(
-                      'text-sm font-medium capitalize',
-                      isHealthy && 'text-green-400',
-                      isUnavailable && 'text-gray-500',
-                      !isHealthy && !isUnavailable && 'text-yellow-400'
-                    )}
-                  >
-                    {service.status.replace('_', ' ')}
-                  </span>
-                </div>
-                
-                {service.latency_ms !== undefined && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-400">Latency</span>
-                    <span className="text-sm text-white">{service.latency_ms}ms</span>
-                  </div>
-                )}
-                
-                {service.connections_active !== undefined && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-400">Connections</span>
-                    <span className="text-sm text-white">
-                      {service.connections_active}/{service.connections_max}
-                    </span>
-                  </div>
-                )}
-                
-                {service.memory_mb !== undefined && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-400">Memory</span>
-                    <span className="text-sm text-white">{service.memory_mb} MB</span>
-                  </div>
-                )}
-                
-                {service.error && (
-                  <p className="text-xs text-red-400 mt-2">{service.error}</p>
-                )}
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Status</span><span className={clsx('text-sm font-medium', isHealthy ? 'text-green-400' : isUnavailable ? 'text-gray-500' : 'text-yellow-400')}>{svc.status.replace('_', ' ')}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Latency</span><span className="text-sm text-white">{svc.latency_ms ?? '-'}ms</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Active Connections</span><span className="text-sm text-white">{svc.connections_active ?? '-'}/{svc.connections_max ?? '-'}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Pool Usage</span><span className="text-sm text-white">{svc.pool_usage_percent ?? '-'}%</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Cache Hit Ratio</span><span className="text-sm text-white">{svc.cache_hit_ratio ?? '-'}%</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Transactions</span><span className="text-sm text-white">{formatNumber(svc.xact_commit ?? 0)} committed</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Rollbacks</span><span className="text-sm text-white">{formatNumber(svc.xact_rollback ?? 0)}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Deadlocks</span><span className={clsx('text-sm', (svc.deadlocks ?? 0) > 0 ? 'text-red-400' : 'text-white')}>{svc.deadlocks ?? 0}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Slow Queries</span><span className={clsx('text-sm', (svc.slow_queries ?? 0) > 0 ? 'text-yellow-400' : 'text-white')}>{svc.slow_queries ?? 0}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">DB Size</span><span className="text-sm text-white">{svc.db_size_mb ?? '-'} MB</span></div>
               </div>
-            </div>
+              <div className="flex items-center gap-1 text-gray-500 group-hover:text-blue-400 transition-colors mt-3">
+                <span className="text-xs">View details</span><ChevronRightIcon className="h-3 w-3" />
+              </div>
+              {svc.error && <p className="text-xs text-red-400 mt-1">{svc.error}</p>}
+            </button>
           );
-        })}
+        })()}
+
+        {/* Redis Card */}
+        {health?.services?.redis && (() => {
+          const svc = health.services.redis;
+          const isHealthy = svc.status === 'healthy';
+          const isUnavailable = svc.status === 'not_configured' || svc.status === 'unavailable';
+          return (
+            <button onClick={() => setSelectedService('redis')} className="card text-left cursor-pointer hover:border-red-500/50 hover:shadow-lg hover:shadow-red-500/10 transition-all duration-200 group">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <CpuChipIcon className="h-5 w-5 text-red-400" />
+                  <h3 className="font-medium text-white">Redis</h3>
+                </div>
+                <span className={clsx('w-3 h-3 rounded-full', isHealthy && 'bg-green-500 animate-pulse', isUnavailable && 'bg-gray-500', !isHealthy && !isUnavailable && 'bg-yellow-500 animate-pulse')} />
+              </div>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Status</span><span className={clsx('text-sm font-medium', isHealthy ? 'text-green-400' : isUnavailable ? 'text-gray-500' : 'text-yellow-400')}>{svc.status.replace('_', ' ')}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Latency</span><span className="text-sm text-white">{svc.latency_ms ?? '-'}ms</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Memory Used</span><span className="text-sm text-white">{svc.memory_mb ?? '-'} MB</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Peak Memory</span><span className="text-sm text-white">{svc.memory_peak_mb ?? '-'} MB</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Cache Hit Rate</span><span className="text-sm text-white">{svc.cache_hit_rate ?? '-'}%</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Connected Clients</span><span className="text-sm text-white">{svc.connected_clients ?? '-'}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Blocked Clients</span><span className={clsx('text-sm', (svc.blocked_clients ?? 0) > 0 ? 'text-yellow-400' : 'text-white')}>{svc.blocked_clients ?? 0}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Evicted Keys</span><span className={clsx('text-sm', (svc.evicted_keys ?? 0) > 0 ? 'text-yellow-400' : 'text-white')}>{svc.evicted_keys ?? 0}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Total Keys</span><span className="text-sm text-white">{svc.total_keys ?? '-'}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Expired Keys</span><span className="text-sm text-white">{svc.expired_keys ?? '-'}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Fragmentation</span><span className={clsx('text-sm', (svc.mem_fragmentation_ratio ?? 1) > 1.5 ? 'text-yellow-400' : 'text-white')}>{svc.mem_fragmentation_ratio ?? '-'}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Uptime</span><span className="text-sm text-white">{svc.uptime_seconds ? `${Math.floor(svc.uptime_seconds / 3600)}h ${Math.floor((svc.uptime_seconds % 3600) / 60)}m` : '-'}</span></div>
+              </div>
+              <div className="flex items-center gap-1 text-gray-500 group-hover:text-red-400 transition-colors mt-3">
+                <span className="text-xs">View details</span><ChevronRightIcon className="h-3 w-3" />
+              </div>
+              {svc.error && <p className="text-xs text-red-400 mt-1">{svc.error}</p>}
+            </button>
+          );
+        })()}
+
+        {/* Kafka Card */}
+        {health?.services?.kafka && (() => {
+          const svc = health.services.kafka;
+          const isHealthy = svc.status === 'healthy';
+          const isUnavailable = svc.status === 'not_configured' || svc.status === 'unavailable';
+          return (
+            <button onClick={() => setSelectedService('kafka')} className="card text-left cursor-pointer hover:border-orange-500/50 hover:shadow-lg hover:shadow-orange-500/10 transition-all duration-200 group">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <SignalIcon className="h-5 w-5 text-orange-400" />
+                  <h3 className="font-medium text-white">Kafka</h3>
+                </div>
+                <span className={clsx('w-3 h-3 rounded-full', isHealthy && 'bg-green-500 animate-pulse', isUnavailable && 'bg-gray-500', !isHealthy && !isUnavailable && 'bg-yellow-500 animate-pulse')} />
+              </div>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Status</span><span className={clsx('text-sm font-medium', isHealthy ? 'text-green-400' : isUnavailable ? 'text-gray-500' : 'text-yellow-400')}>{svc.status.replace('_', ' ')}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Consumer Lag</span><span className={clsx('text-sm', (svc.consumer_lag ?? 0) > 100 ? 'text-yellow-400' : 'text-white')}>{svc.consumer_lag ?? '-'}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Partitions</span><span className="text-sm text-white">{svc.partition_count ?? '-'}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Under-replicated</span><span className={clsx('text-sm', (svc.under_replicated_partitions ?? 0) > 0 ? 'text-red-400' : 'text-white')}>{svc.under_replicated_partitions ?? '-'}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Active Producers</span><span className="text-sm text-white">{svc.active_producers ?? '-'}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Active Consumers</span><span className="text-sm text-white">{svc.active_consumers ?? '-'}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Throughput</span><span className="text-sm text-white">{svc.message_throughput_sec != null ? `${svc.message_throughput_sec} msg/s` : '-'}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Broker Uptime</span><span className="text-sm text-white">{svc.broker_uptime ? `${Math.floor(svc.broker_uptime / 3600)}h` : '-'}</span></div>
+              </div>
+              <div className="flex items-center gap-1 text-gray-500 group-hover:text-orange-400 transition-colors mt-3">
+                <span className="text-xs">View details</span><ChevronRightIcon className="h-3 w-3" />
+              </div>
+              {svc.error && <p className="text-xs text-red-400 mt-1">{svc.error}</p>}
+            </button>
+          );
+        })()}
+
+        {/* Vault Card */}
+        {health?.services?.vault && (() => {
+          const svc = health.services.vault;
+          const isHealthy = svc.status === 'healthy';
+          const isUnavailable = svc.status === 'not_configured' || svc.status === 'unavailable';
+          return (
+            <button onClick={() => setSelectedService('vault')} className="card text-left cursor-pointer hover:border-purple-500/50 hover:shadow-lg hover:shadow-purple-500/10 transition-all duration-200 group">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <GlobeAltIcon className="h-5 w-5 text-purple-400" />
+                  <h3 className="font-medium text-white">Vault</h3>
+                </div>
+                <span className={clsx('w-3 h-3 rounded-full', isHealthy && 'bg-green-500 animate-pulse', isUnavailable && 'bg-gray-500', !isHealthy && !isUnavailable && 'bg-yellow-500 animate-pulse')} />
+              </div>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Status</span><span className={clsx('text-sm font-medium', isHealthy ? 'text-green-400' : isUnavailable ? 'text-gray-500' : 'text-yellow-400')}>{svc.status.replace('_', ' ')}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Seal Status</span><span className={clsx('text-sm', svc.seal_status === true ? 'text-red-400' : svc.seal_status === false ? 'text-green-400' : 'text-gray-500')}>{svc.seal_status === true ? 'Sealed' : svc.seal_status === false ? 'Unsealed' : '-'}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Token TTL</span><span className={clsx('text-sm', (svc.token_ttl ?? 0) < 300 && svc.token_ttl != null ? 'text-yellow-400' : 'text-white')}>{svc.token_ttl != null ? `${Math.floor(svc.token_ttl / 60)}m ${svc.token_ttl % 60}s` : '-'}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-400">Lease Count</span><span className="text-sm text-white">{svc.lease_count ?? '-'}</span></div>
+                <div className="flex justify-between col-span-2"><span className="text-sm text-gray-400">Mounts Enabled</span><span className="text-sm text-white truncate max-w-[220px]" title={svc.mounts_enabled?.join(', ')}>{svc.mounts_enabled ? svc.mounts_enabled.join(', ') : '-'}</span></div>
+              </div>
+              <div className="flex items-center gap-1 text-gray-500 group-hover:text-purple-400 transition-colors mt-3">
+                <span className="text-xs">View details</span><ChevronRightIcon className="h-3 w-3" />
+              </div>
+              {svc.error && <p className="text-xs text-red-400 mt-1">{svc.error}</p>}
+            </button>
+          );
+        })()}
       </div>
       
       {/* Performance Metrics */}
@@ -287,6 +355,13 @@ export default function SystemHealth() {
           </div>
         </div>
       </div>
+
+      {/* Service Detail Slide-Over Panel */}
+      <ServiceDetailPanel
+        service={selectedService}
+        data={selectedService && health?.services ? health.services[selectedService] : undefined}
+        onClose={() => setSelectedService(null)}
+      />
     </div>
   );
 }

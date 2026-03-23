@@ -899,22 +899,32 @@ class AdminGovernanceService:
                 string.ascii_letters + string.digits + "!@#$%"
             ) for _ in range(16))
 
+        org_id = data.get("org_id") or None
+        if org_id:
+            org = db.query(Organization).filter(Organization.id == org_id).first()
+            if not org:
+                org = Organization(id=org_id, name=f"Auto-created Org {org_id}")
+                db.add(org)
+                logger.info(f"Auto-created organization with id={org_id} for user creation")
+                db.flush()  # Ensure org is persisted before user FK
+
         user = User(
             id=str(uuid.uuid4()),
             email=data["email"],
             first_name=data["first_name"],
             last_name=data["last_name"],
             role=data.get("role", "viewer"),
-            org_id=data.get("org_id"),
+            org_id=org_id,
+            phone=data.get("phone") or None,
+            risk_score=data.get("risk_score", 0),
             password_hash=hash_password(password),
-            status="active",
-            is_active=True,
+            status=data.get("status", "active"),
+            is_active=data.get("status", "active") == "active",
             email_verified=True,  # Admin-created users are trusted — no email verification needed
             created_by=admin_id,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
         )
-        db.add(user)
 
         audit = AuditLog(
             id=str(uuid.uuid4()),
@@ -924,9 +934,15 @@ class AdminGovernanceService:
             event_metadata={"email": data["email"], "role": data.get("role", "viewer")},
             timestamp=datetime.utcnow(),
         )
-        db.add(audit)
-        db.commit()
-        db.refresh(user)
+        try:
+            db.add(user)
+            db.add(audit)
+            db.commit()
+            db.refresh(user)
+        except Exception as e:
+            db.rollback()
+            logger.error(f"User creation failed: {e}")
+            return {"error": "User creation failed due to a database error."}
 
         logger.info(f"User created by admin: {user.email} (role={user.role})")
         return {
@@ -935,6 +951,11 @@ class AdminGovernanceService:
             "first_name": user.first_name,
             "last_name": user.last_name,
             "role": user.role,
+            "org_id": user.org_id,
+            "phone": user.phone,
+            "risk_score": user.risk_score,
+            "status": user.status,
+            "created_at": user.created_at.isoformat() if user.created_at else None,
             "temporary_password": password,
             "msg": "User created successfully"
         }

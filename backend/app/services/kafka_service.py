@@ -330,15 +330,48 @@ class KafkaConsumerService:
 
 
 # Global producer instance
+
+# --- Robust Kafka Producer Singleton with Retry and State ---
 _producer: Optional[KafkaProducerService] = None
+_producer_last_attempt: Optional[float] = None
+_producer_last_error: Optional[str] = None
+_producer_state: str = "not_configured"  # healthy, unhealthy, not_configured
 
-
-async def get_kafka_producer() -> KafkaProducerService:
-    """Get or create Kafka producer singleton."""
-    global _producer
-    if _producer is None or not _producer.is_connected:
-        _producer = await KafkaProducerService.create()
+async def get_kafka_producer(retries: int = 3, delay: float = 2.0) -> KafkaProducerService:
+    """Get or create Kafka producer singleton with retry logic and state tracking."""
+    global _producer, _producer_last_attempt, _producer_last_error, _producer_state
+    import time
+    _producer_last_attempt = time.time()
+    last_error = None
+    for attempt in range(1, retries + 1):
+        try:
+            if _producer is None or not _producer.is_connected:
+                _producer = await KafkaProducerService.create()
+            if _producer.is_connected:
+                _producer_state = "healthy"
+                _producer_last_error = None
+                return _producer
+            else:
+                last_error = "Producer not connected after create()"
+        except Exception as e:
+            last_error = str(e)
+        _producer_last_error = last_error
+        _producer_state = "unhealthy"
+        if attempt < retries:
+            await asyncio.sleep(delay)
+    # If all retries failed
+    _producer_state = "unhealthy" if _producer else "not_configured"
     return _producer
+
+def get_kafka_health_status() -> dict:
+    """Return Kafka health status for dashboard health endpoint."""
+    global _producer, _producer_state, _producer_last_error
+    if _producer_state == "healthy":
+        return {"status": "healthy"}
+    elif _producer_state == "unhealthy":
+        return {"status": "unhealthy", "error": _producer_last_error or "Kafka not connected"}
+    else:
+        return {"status": "not_configured"}
 
 
 async def shutdown_kafka():

@@ -153,11 +153,25 @@ async def lifespan(app: FastAPI):
         logger.warning(f"Kafka initialization skipped: {e}")
     
     # Initialize Vault (optional - graceful degradation)
+    # Seed secrets to Vault KV, then load them back to replace static .env values
     try:
         from app.core.vault_client import get_vault_client
         vault = get_vault_client()
         if vault.is_authenticated():
             logger.info("Vault client authenticated")
+            # Seed current config into Vault KV (first-run bootstrap)
+            from app.core.vault_secrets import seed_secrets_to_vault, load_secrets_from_vault, apply_secrets_to_config
+            seed_secrets_to_vault()
+            # Load secrets from Vault and apply to running config
+            vault_secrets = load_secrets_from_vault()
+            apply_secrets_to_config(vault_secrets)
+            logger.info("Vault KV secrets applied — static credentials replaced")
+            # Ensure Transit engine is ready for PII encryption
+            try:
+                vault._ensure_transit_key("sentineliq-pii")
+                logger.info("Vault Transit engine ready for PII encryption")
+            except Exception as te:
+                logger.warning(f"Vault Transit key setup skipped: {te}")
     except Exception as e:
         logger.warning(f"Vault initialization skipped: {e}")
     

@@ -142,6 +142,9 @@ export interface AdminUserCreateRequest {
   role?: string;
   org_id?: string;
   password?: string;
+  phone?: string;
+  risk_score?: number;
+  status?: string;
 }
 
 export interface AdminUserUpdateRequest {
@@ -288,7 +291,7 @@ export const adminGovernanceApi = createApi({
       providesTags: ['IAMUsers'],
     }),
 
-    createAdminUser: builder.mutation<{ id: string; email: string; temporary_password: string; msg: string }, AdminUserCreateRequest>({
+    createAdminUser: builder.mutation<{ id: string; email: string; temporary_password: string; org_id?: string; phone?: string; risk_score?: number; status?: string; created_at?: string; msg: string }, AdminUserCreateRequest>({
       query: (body) => ({ url: '/users', method: 'POST', body }),
       invalidatesTags: ['IAMUsers', 'Overview'],
     }),

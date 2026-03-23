@@ -1,0 +1,137 @@
+# Promtail configuration - Ships container logs to Loki
+# Auto-discovers Docker containers and labels logs by service name
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+    tenant_id: sentineliq
+    batchwait: 1s
+    batchsize: 1048576  # 1MB
+
+scrape_configs:
+  # ============================================================================
+  # Docker Container Logs - Auto-discovery via docker.sock
+  # ============================================================================
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        filters:
+          - name: network
+            values: ["iq-main_backend"]
+    relabel_configs:
+      # Extract container name as a label
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: container
+      
+      # Extract container ID
+      - source_labels: ['__meta_docker_container_id']
+        target_label: container_id
+      
+      # Map container name to a clean service label
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/sentineliq_(.*)'
+        target_label: service
+        replacement: '$1'
+      
+      # Tag with compose service name if available
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: compose_service
+
+    pipeline_stages:
+      # ========================================================================
+      # Stage 1: Detect and parse JSON logs (FastAPI structured logs)
+      # ========================================================================
+      - match:
+          selector: '{compose_service="api"}'
+          stages:
+            - json:
+                expressions:
+                  level: level
+                  logger_name: logger
+                  message: message
+                  module: module
+                  function: function
+                  user_id: user_id
+                  request_id: request_id
+                  ip_address: ip_address
+                  method: method
+                  path: path
+                  status_code: status_code
+                  duration_ms: duration_ms
+                  action: action
+                  timestamp: timestamp
+            - labels:
+                level:
+                logger_name:
+                module:
+                action:
+            - metrics:
+                log_lines_total:
+                  type: Counter
+                  description: "Total log lines by level"
+                  source: level
+                  config:
+                    action: inc
+                    match_all: true
+
+      # ========================================================================
+      # Stage 2: Kafka broker logs
+      # ========================================================================
+      - match:
+          selector: '{compose_service="kafka"}'
+          stages:
+            - regex:
+                expression: '^\[(?P<timestamp>[^\]]+)\]\s+(?P<level>\w+)\s+(?P<message>.*)'
+            - labels:
+                level:
+
+      # ========================================================================
+      # Stage 3: PostgreSQL logs
+      # ========================================================================
+      - match:
+          selector: '{compose_service="postgres"}'
+          stages:
+            - regex:
+                expression: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d+\s+\w+)\s+\[(?P<pid>\d+)\]\s+(?P<level>\w+):\s+(?P<message>.*)'
+            - labels:
+                level:
+
+      # ========================================================================
+      # Stage 4: Redis logs
+      # ========================================================================
+      - match:
+          selector: '{compose_service="redis"}'
+          stages:
+            - regex:
+                expression: '^\d+:.\s+(?P<timestamp>\d+\s+\w+\s+\d{4}\s+\d{2}:\d{2}:\d{2}\.\d+)\s+(?P<level>[#*\-])\s+(?P<message>.*)'
+            - labels:
+                level:
+
+      # ========================================================================
+      # Stage 5: Vault logs
+      # ========================================================================
+      - match:
+          selector: '{compose_service="vault"}'
+          stages:
+            - regex:
+                expression: '(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+[Z+-]\d*:?\d*)\s+\[(?P<level>\w+)\]\s+(?P<message>.*)'
+            - labels:
+                level:
+
+      # ========================================================================
+      # Stage 6: Drop noisy health check logs
+      # ========================================================================
+      - match:
+          selector: '{compose_service="api"}'
+          stages:
+            - drop:
+                expression: '.*(/health|/metrics).*'
+                drop_counter_reason: healthcheck

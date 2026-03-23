@@ -205,7 +205,7 @@ export default function PhoneVerificationCard() {
           </div>
           <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 16 }}>
             Enter your phone number in international format (e.g. +254712345678).
-            A verification code will be generated.
+            A verification code will be sent to your phone and email.
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <input
@@ -244,7 +244,7 @@ export default function PhoneVerificationCard() {
             Verify Your Phone
           </div>
           <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 16 }}>
-            Enter the 6-digit verification code. The code is shown in the status message above or in the server logs.
+            Enter the 6-digit verification code sent to your phone number and email.
           </div>
           <form onSubmit={handleVerify} style={{ display: 'flex', gap: 8 }}>
             <input

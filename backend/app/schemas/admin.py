@@ -131,6 +131,9 @@ class AdminUserCreate(BaseModel):
     role: str = Field(default="viewer", pattern="^(admin|analyst|viewer)$")
     org_id: Optional[str] = None
     password: Optional[str] = Field(None, min_length=8, description="If omitted, a temporary password is generated")
+    phone: Optional[str] = Field(None, max_length=20, description="Phone number (optional, user can add later)")
+    risk_score: Optional[int] = Field(None, ge=0, le=1000, description="Initial risk score (0-1000)")
+    status: Optional[str] = Field(default="active", pattern="^(active|suspended|pending)$")
 
 
 class AdminUserUpdate(BaseModel):

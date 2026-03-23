@@ -4,13 +4,47 @@ import type { RootState } from '../store';
 // Types for API responses
 export interface ServiceHealth {
   status: 'healthy' | 'unhealthy' | 'degraded' | 'not_configured' | 'unavailable';
+  error?: string;
+  // Database fields
   latency_ms?: number;
   connections_active?: number;
   connections_max?: number;
+  pool_size?: number;
+  pool_checked_out?: number;
+  pool_overflow?: number;
+  pool_usage_percent?: number;
+  cache_hit_ratio?: number;
+  xact_commit?: number;
+  xact_rollback?: number;
+  deadlocks?: number;
+  slow_queries?: number;
+  db_size_mb?: number;
+  // Redis fields
   memory_mb?: number;
+  memory_peak_mb?: number;
   connected_clients?: number;
+  blocked_clients?: number;
+  uptime_seconds?: number;
+  cache_hit_rate?: number;
+  evicted_keys?: number;
+  total_keys?: number;
+  expired_keys?: number;
+  mem_fragmentation_ratio?: number;
+  keyspace?: Record<string, unknown>;
+  // Kafka fields
   consumer_lag?: number;
-  error?: string;
+  partition_count?: number;
+  under_replicated_partitions?: number;
+  message_throughput_sec?: number;
+  active_producers?: number;
+  active_consumers?: number;
+  broker_uptime?: number;
+  // Vault fields
+  token_ttl?: number;
+  seal_status?: boolean;
+  mounts_enabled?: string[];
+  lease_count?: number;
+  server_time?: number;
 }
 
 export interface SystemHealth {
@@ -23,6 +57,17 @@ export interface SystemHealth {
     vault: ServiceHealth;
   };
   overall_health_percent: number;
+}
+
+export type ServiceName = 'database' | 'redis' | 'kafka' | 'vault';
+
+export interface HealthHistoryPoint extends ServiceHealth {
+  timestamp: string;
+}
+
+export interface HealthHistoryResponse {
+  service: ServiceName;
+  points: HealthHistoryPoint[];
 }
 
 export interface SystemMetrics {
@@ -234,6 +279,12 @@ export const dashboardApi = createApi({
       providesTags: ['Health'],
     }),
 
+    // Health History (time-series for charts)
+    getHealthHistory: builder.query<HealthHistoryResponse, { service: ServiceName; points?: number }>({
+      query: ({ service, points = 20 }) => `/health/history?service=${service}&points=${points}`,
+      providesTags: ['Health'],
+    }),
+
     // System Metrics
     getSystemMetrics: builder.query<SystemMetrics, string>({
       query: (timeRange) => `/metrics?time_range=${timeRange}`,
@@ -362,6 +413,7 @@ export const dashboardApi = createApi({
 // Export hooks
 export const {
   useGetSystemHealthQuery,
+  useGetHealthHistoryQuery,
   useGetSystemMetricsQuery,
   useGetAllUsersQuery,
   useGetActiveUsersQuery,

@@ -472,18 +472,53 @@ class VaultClient:
         return self.delete_encryption_key(key_name)
 
 
-def get_vault_client() -> VaultClient:
+
+# --- Robust Vault Client Singleton with Retry and State ---
 _vault_client: Optional[VaultClient] = None
-def get_vault_client() -> VaultClient:
-    global _vault_client
-    if _vault_client is None:
-        _vault_client = VaultClient()
-        # Start background token renewal
+_vault_last_attempt: Optional[float] = None
+_vault_last_error: Optional[str] = None
+_vault_state: str = "not_configured"  # healthy, unhealthy, not_configured
+
+def get_vault_client(retries: int = 3, delay: float = 2.0) -> VaultClient:
+    """Get or create Vault client singleton with retry logic and state tracking."""
+    global _vault_client, _vault_last_attempt, _vault_last_error, _vault_state
+    import time
+    _vault_last_attempt = time.time()
+    last_error = None
+    for attempt in range(1, retries + 1):
         try:
-            _vault_client.start_token_renewal_task()
+            if _vault_client is None or not _vault_client.is_authenticated():
+                _vault_client = VaultClient()
+                # Start background token renewal
+                try:
+                    _vault_client.start_token_renewal_task()
+                except Exception as e:
+                    logger.warning(f"Vault token renewal task not started: {e}")
+            if _vault_client.is_authenticated():
+                _vault_state = "healthy"
+                _vault_last_error = None
+                return _vault_client
+            else:
+                last_error = "Vault not authenticated after create()"
         except Exception as e:
-            logger.warning(f"Vault token renewal task not started: {e}")
+            last_error = str(e)
+        _vault_last_error = last_error
+        _vault_state = "unhealthy"
+        if attempt < retries:
+            import asyncio
+            asyncio.run(asyncio.sleep(delay))
+    # If all retries failed
+    _vault_state = "unhealthy" if _vault_client else "not_configured"
     return _vault_client
+
+def get_vault_health_status() -> dict:
+    global _vault_client, _vault_state, _vault_last_error
+    if _vault_state == "healthy":
+        return {"status": "healthy"}
+    elif _vault_state == "unhealthy":
+        return {"status": "unhealthy", "error": _vault_last_error or "Vault not authenticated"}
+    else:
+        return {"status": "not_configured"}
 
 
 # Dependency injection helper

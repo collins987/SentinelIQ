@@ -1,0 +1,55 @@
+# SentinelIQ Prometheus Alerts
+# Place this file in monitoring/rules/ and ensure prometheus.yml loads it
+
+groups:
+  - name: sentineliq-alerts
+    rules:
+      # 1. API High Error Rate
+      - alert: HighApiErrorRate
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m])) by (job) > 2
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High API error rate detected"
+          description: "More than 2 errors/sec for 2 minutes on {{ $labels.job }}"
+
+      # 2. Database Down
+      - alert: PostgresDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL exporter is down"
+          description: "No metrics received from postgres-exporter for 1 minute"
+
+      # 3. Redis Memory Usage High
+      - alert: RedisMemoryHigh
+        expr: redis_memory_used_bytes / redis_config_maxmemory_bytes > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis memory usage high"
+          description: "Redis is using over 80% of its configured memory"
+
+      # 4. Kafka Producer Not Connected
+      - alert: KafkaProducerUnhealthy
+        expr: sentineliq_kafka_producer_healthy == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Kafka producer is not connected"
+          description: "Kafka producer health check failed"
+
+      # 5. Vault Token Expiry Imminent
+      - alert: VaultTokenExpiring
+        expr: sentineliq_vault_token_ttl_seconds < 300
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Vault token TTL low"
+          description: "Vault token will expire in less than 5 minutes"

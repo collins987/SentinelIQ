@@ -72,10 +72,6 @@ services:
     networks:
       - backend
 
-  # ============================================================================
-  # MILESTONE 1 & 2: Event-Driven Risk Engine Infrastructure
-  # ============================================================================
-
   # MinIO - S3-compatible object storage for immutable audit logs
   minio:
     image: minio/minio:latest
@@ -84,6 +80,7 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_PROMETHEUS_AUTH_TYPE: public
     ports:
       - "9000:9000"  # S3 API
       - "9001:9001"  # Web console
@@ -111,6 +108,7 @@ services:
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
+      - ./monitoring/rules:/etc/prometheus/rules:ro
     restart: unless-stopped
     networks:
       - backend
@@ -151,12 +149,6 @@ services:
       - loki_wal:/wal
     environment:
       - LOKI_COMPACTOR_SHARED_STORE=filesystem
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3100/ready"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
     restart: unless-stopped
     networks:
       - backend
@@ -168,6 +160,8 @@ services:
     environment:
       VAULT_DEV_ROOT_TOKEN_ID: devroot
       VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+      # Enable unauthenticated Prometheus metrics endpoint
+      VAULT_TELEMETRY_UNAUTHENTICATED_METRICS_ACCESS: "true"
     command: server -dev
     ports:
       - "8200:8200"
@@ -346,6 +340,61 @@ services:
     networks:
       - backend
 
+  # ============================================================================
+  # Monitoring Exporters - Prometheus Metric Collectors
+  # ============================================================================
+
+  # Kafka Exporter - Consumer group lag, topic metrics, broker health
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:latest
+    container_name: sentineliq_kafka_exporter
+    command:
+      - "--kafka.server=kafka:29092"
+    ports:
+      - "9308:9308"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # Zookeeper Exporter - Cluster coordination health metrics
+  zookeeper-exporter:
+    image: dabealu/zookeeper-exporter:latest
+    container_name: sentineliq_zookeeper_exporter
+    command:
+      - "-zk-hosts=zookeeper:2181"
+      - "-listen=0.0.0.0:9141"
+    ports:
+      - "9141:9141"
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # ============================================================================
+  # Promtail - Log Collector for Loki
+  # Auto-discovers Docker containers and ships structured logs to Loki
+  # ============================================================================
+  promtail:
+    image: grafana/promtail:latest
+    container_name: sentineliq_promtail
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./monitoring/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - promtail_positions:/tmp
+    depends_on:
+      loki:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - backend
+
 volumes:
   pgdata:
   minio_data:
@@ -358,6 +407,7 @@ volumes:
   zookeeper_data:
   zookeeper_log:
   kafka_data:
+  promtail_positions:
 
 networks:
   backend:

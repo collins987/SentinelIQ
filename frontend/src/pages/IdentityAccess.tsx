@@ -66,6 +66,10 @@ export default function IdentityAccess() {
   const [formFirstName, setFormFirstName] = useState('');
   const [formLastName, setFormLastName] = useState('');
   const [formRole, setFormRole] = useState('viewer');
+  const [formOrgId, setFormOrgId] = useState('');
+  const [formPhone, setFormPhone] = useState('');
+  const [formRiskScore, setFormRiskScore] = useState('');
+  const [formStatus, setFormStatus] = useState('active');
   const [formError, setFormError] = useState('');
 
   const { data, isLoading, error } = useListAdminUsersQuery({
@@ -91,6 +95,10 @@ export default function IdentityAccess() {
         first_name: formFirstName,
         last_name: formLastName,
         role: formRole,
+        org_id: formOrgId || undefined,
+        phone: formPhone || undefined,
+        risk_score: formRiskScore ? parseInt(formRiskScore, 10) : undefined,
+        status: formStatus,
       };
       const result = await createUser(payload).unwrap();
       setCreatedUserInfo({ email: result.email, password: result.temporary_password });
@@ -98,6 +106,10 @@ export default function IdentityAccess() {
       setFormFirstName('');
       setFormLastName('');
       setFormRole('viewer');
+      setFormOrgId('');
+      setFormPhone('');
+      setFormRiskScore('');
+      setFormStatus('active');
     } catch (err: unknown) {
       const msg = err && typeof err === 'object' && 'data' in err
         ? String((err as { data: { detail?: string } }).data?.detail || 'Failed to create user')
@@ -233,6 +245,7 @@ export default function IdentityAccess() {
                 <th>User</th>
                 <th>Role</th>
                 <th>Status</th>
+                <th>Org ID</th>
                 <th>Risk</th>
                 <th>Trust</th>
                 <th>MFA</th>
@@ -264,6 +277,9 @@ export default function IdentityAccess() {
                     </td>
                     <td>
                       <span className={statusMeta.className}>{statusMeta.label}</span>
+                    </td>
+                    <td className="text-sm text-gray-400 whitespace-nowrap">
+                      {user.org_id || '—'}
                     </td>
                     <td>
                       <span className={clsx(
@@ -476,6 +492,30 @@ export default function IdentityAccess() {
                           <span className="text-xs text-gray-500">{r.desc}</span>
                         </button>
                       ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-1.5">Organization ID</label>
+                      <input type="text" value={formOrgId} onChange={(e) => setFormOrgId(e.target.value)} placeholder="ORG-001" className="input" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-1.5">Phone Number <span className="text-gray-500 text-xs">(optional)</span></label>
+                      <input type="tel" value={formPhone} onChange={(e) => setFormPhone(e.target.value)} placeholder="+2547XXXXXXXX" className="input" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-1.5">Risk Score</label>
+                      <input type="number" min={0} max={1000} value={formRiskScore} onChange={(e) => setFormRiskScore(e.target.value)} placeholder="0" className="input" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-1.5">Account Status</label>
+                      <select value={formStatus} onChange={(e) => setFormStatus(e.target.value)} className="input">
+                        <option value="active">Active</option>
+                        <option value="pending">Pending</option>
+                        <option value="suspended">Suspended</option>
+                      </select>
                     </div>
                   </div>
                   <div className="bg-blue-900/20 border border-blue-700/30 rounded-lg p-3 text-sm text-blue-300">

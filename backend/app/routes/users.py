@@ -52,12 +52,30 @@ user_router = APIRouter(tags=["User Dashboard"])
 
 @user_router.get("/user/profile", summary="Get current user's profile")
 def get_user_profile_root(current_user: User = Depends(get_current_user)):
+    # Decrypt PII fields if they are Vault-encrypted
+    from app.services.pii_encryption import decrypt_user_pii
+    pii = decrypt_user_pii(
+        user_id=current_user.id,
+        first_name=getattr(current_user, "first_name", ""),
+        last_name=getattr(current_user, "last_name", ""),
+        phone=getattr(current_user, "phone", None),
+    )
     return {
         "id": current_user.id,
-        "name": f"{current_user.first_name} {current_user.last_name}",
+        "name": f"{pii['first_name']} {pii['last_name']}",
+        "first_name": pii["first_name"],
+        "last_name": pii["last_name"],
         "email": current_user.email,
         "role": current_user.role,
+        "org_id": getattr(current_user, "org_id", None),
+        "phone": pii["phone"],
+        "phone_verified": getattr(current_user, "phone_verified", False),
         "email_verified": getattr(current_user, "email_verified", False),
+        "risk_score": getattr(current_user, "risk_score", 0),
+        "mfa_enabled": getattr(current_user, "mfa_enabled", False),
+        "trust_level": getattr(current_user, "trust_level", "unknown"),
+        "status": getattr(current_user, "status", "active"),
+        "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
     }
 
 @user_router.get("/user/dashboard", summary="Get all user dashboard info (profile, risk, activity, session)")
@@ -65,18 +83,29 @@ def get_user_dashboard_root(current_user: User = Depends(get_current_user), db: 
     from sqlalchemy import desc, and_, func
     from app.models import Loan, SecurityAlert, UserSession
     now = datetime.utcnow()
+    # Decrypt PII fields if they are Vault-encrypted
+    from app.services.pii_encryption import decrypt_user_pii
+    pii = decrypt_user_pii(
+        user_id=current_user.id,
+        first_name=current_user.first_name,
+        last_name=current_user.last_name,
+        phone=getattr(current_user, "phone", None),
+    )
     profile = {
         "id": current_user.id,
-        "name": f"{current_user.first_name} {current_user.last_name}",
-        "first_name": current_user.first_name,
-        "last_name": current_user.last_name,
+        "name": f"{pii['first_name']} {pii['last_name']}",
+        "first_name": pii["first_name"],
+        "last_name": pii["last_name"],
         "email": current_user.email,
         "role": current_user.role,
+        "org_id": getattr(current_user, "org_id", None),
         "mfa_enabled": getattr(current_user, "mfa_enabled", False),
         "trust_level": getattr(current_user, "trust_level", "unknown"),
-        "phone": getattr(current_user, "phone", None),
+        "phone": pii["phone"],
         "phone_verified": getattr(current_user, "phone_verified", False),
         "email_verified": getattr(current_user, "email_verified", False),
+        "risk_score": getattr(current_user, "risk_score", 0),
+        "status": getattr(current_user, "status", "active"),
         "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
         "last_login_at": current_user.last_login_at.isoformat() if current_user.last_login_at else None,
     }
@@ -387,7 +416,9 @@ def login(
             "access_token": create_access_token({
                 "sub": "admin-bootstrap",
                 "role": "admin",
+                "email": ADMIN_EMAIL,
                 "org_id": None,
+                "is_virtual": True,
             }),
             "token_type": "bearer"
         }
@@ -398,7 +429,9 @@ def login(
             "access_token": create_access_token({
                 "sub": "test-user",
                 "role": "viewer",
+                "email": TEST_USER_EMAIL,
                 "org_id": None,
+                "is_virtual": True,
             }),
             "token_type": "bearer"
         }

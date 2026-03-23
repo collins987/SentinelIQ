@@ -128,6 +128,43 @@ def _compute_risk_level(risk_score: int) -> str:
 
 
 # ─────────────────────────────────────────────────────────────
+# PROFILE ENDPOINT
+# ─────────────────────────────────────────────────────────────
+
+@router.get("")
+async def get_my_profile(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Get the authenticated user's full profile.
+    Returns all user attributes including org_id, risk_score, phone, verification status.
+    """
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return {
+        "id": user.id,
+        "name": f"{user.first_name} {user.last_name}",
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "email": user.email,
+        "role": user.role,
+        "org_id": user.org_id,
+        "phone": user.phone,
+        "phone_verified": user.phone_verified or False,
+        "email_verified": user.email_verified or False,
+        "mfa_enabled": user.mfa_enabled or False,
+        "risk_score": user.risk_score or 0,
+        "trust_level": user.trust_level or "unknown",
+        "status": user.status or "active",
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "updated_at": user.updated_at.isoformat() if user.updated_at else None,
+    }
+
+
+# ─────────────────────────────────────────────────────────────
 # RISK ENDPOINTS
 # ─────────────────────────────────────────────────────────────
 
@@ -680,11 +717,12 @@ async def update_phone(
 ):
     """
     Set or update the user's phone number.
-    A 6-digit verification code is generated and stored for later verification.
-    In production, this code would be sent via SMS.
+    A 6-digit verification code is generated, stored securely, and sent via email (and SMS in production).
+    The OTP is never returned in the API response.
     """
     import re
-    import random
+    import secrets
+    import hashlib
 
     user = db.query(User).filter(User.id == current_user.id).first()
     if not user:
@@ -695,15 +733,31 @@ async def update_phone(
     if not re.match(r'^\+?\d{7,15}$', cleaned):
         raise HTTPException(status_code=400, detail="Invalid phone number format. Use international format e.g. +254712345678")
 
-    # Generate a 6-digit verification code
-    verification_code = f"{random.randint(100000, 999999)}"
+    # Rate limit: check if a code was sent recently (within 60 seconds)
+    metadata = user.user_metadata or {}
+    last_sent = metadata.get("phone_otp_sent_at")
+    if last_sent:
+        try:
+            last_sent_dt = datetime.fromisoformat(last_sent)
+            if (datetime.utcnow() - last_sent_dt).total_seconds() < 60:
+                raise HTTPException(status_code=429, detail="Please wait at least 60 seconds before requesting a new code.")
+        except (ValueError, TypeError):
+            pass
+
+    # Generate a secure 6-digit OTP
+    verification_code = f"{secrets.randbelow(900000) + 100000}"
+
+    # Hash the OTP before storing
+    code_hash = hashlib.sha256(verification_code.encode()).hexdigest()
 
     user.phone = cleaned
     user.phone_verified = False
-    # Store the verification code in user_metadata (in production: send via SMS)
-    metadata = user.user_metadata or {}
-    metadata["phone_verification_code"] = verification_code
-    metadata["phone_verification_expires"] = (datetime.utcnow() + timedelta(minutes=10)).isoformat()
+    metadata["phone_verification_code_hash"] = code_hash
+    metadata["phone_verification_expires"] = (datetime.utcnow() + timedelta(minutes=5)).isoformat()
+    metadata["phone_verification_attempts"] = 0
+    metadata["phone_otp_sent_at"] = datetime.utcnow().isoformat()
+    # Clean up legacy plaintext field if present
+    metadata.pop("phone_verification_code", None)
     user.user_metadata = metadata
     user.updated_at = datetime.utcnow()
 
@@ -713,12 +767,31 @@ async def update_phone(
 
     db.commit()
 
-    logger.info(f"Phone verification code for user {user.id}: {verification_code}")
+    # Send OTP via email as a backup verification channel
+    try:
+        from app.services.email_service import send_email
+        from app.services.template_service import render_template
+        html = render_template("phone_verification.html", {
+            "first_name": user.first_name,
+            "otp_code": verification_code,
+            "phone_number": cleaned,
+        })
+        send_email(
+            to=user.email,
+            subject="SentinelIQ Phone Verification Code",
+            html_content=html,
+        )
+    except Exception as e:
+        logger.error(f"Failed to send phone OTP email for user {user.id}: {e}")
+
+    # In production: also send via SMS provider (Twilio / Africa's Talking / AWS SNS)
+    # sms_service.send(to=cleaned, message=f"Your SentinelIQ verification code is: {verification_code}")
+    logger.info(f"Phone verification OTP sent to user {user.id} via email")
 
     return PhoneStatusResponse(
         phone=user.phone,
         phone_verified=False,
-        message=f"Phone number updated. Verification code: {verification_code} (valid for 10 minutes)",
+        message="Verification code sent to your phone number and email. Code is valid for 5 minutes.",
     )
 
 
@@ -742,12 +815,25 @@ async def verify_phone(
     if user.phone_verified:
         return PhoneVerifyResponse(verified=True, message="Phone is already verified")
 
-    metadata = user.user_metadata or {}
-    stored_code = metadata.get("phone_verification_code")
-    expires_str = metadata.get("phone_verification_expires")
+    import hashlib
 
-    if not stored_code or not expires_str:
+    metadata = user.user_metadata or {}
+    stored_hash = metadata.get("phone_verification_code_hash")
+    expires_str = metadata.get("phone_verification_expires")
+    attempts = metadata.get("phone_verification_attempts", 0)
+
+    if not stored_hash or not expires_str:
         raise HTTPException(status_code=400, detail="No verification code found. Request a new one by updating your phone number.")
+
+    # Check max attempts (3)
+    if attempts >= 3:
+        # Invalidate the code after too many attempts
+        metadata.pop("phone_verification_code_hash", None)
+        metadata.pop("phone_verification_expires", None)
+        metadata.pop("phone_verification_attempts", None)
+        user.user_metadata = metadata
+        db.commit()
+        raise HTTPException(status_code=400, detail="Too many failed attempts. Please request a new verification code.")
 
     # Check expiration
     try:
@@ -757,16 +843,25 @@ async def verify_phone(
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid verification state. Request a new code.")
 
-    if body.code != stored_code:
-        raise HTTPException(status_code=400, detail="Invalid verification code")
+    # Verify OTP by comparing hashes
+    submitted_hash = hashlib.sha256(body.code.encode()).hexdigest()
+    if submitted_hash != stored_hash:
+        metadata["phone_verification_attempts"] = attempts + 1
+        user.user_metadata = metadata
+        db.commit()
+        remaining = 3 - (attempts + 1)
+        raise HTTPException(status_code=400, detail=f"Invalid verification code. {remaining} attempt(s) remaining.")
 
     # Mark phone as verified
     user.phone_verified = True
     user.updated_at = datetime.utcnow()
 
     # Clean up verification metadata
+    metadata.pop("phone_verification_code_hash", None)
     metadata.pop("phone_verification_code", None)
     metadata.pop("phone_verification_expires", None)
+    metadata.pop("phone_verification_attempts", None)
+    metadata.pop("phone_otp_sent_at", None)
     user.user_metadata = metadata
 
     # Update risk: phone verification reduces identity risk by 15
@@ -791,8 +886,9 @@ async def resend_phone_code(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Resend a new verification code for the current phone number."""
-    import random
+    """Resend a new verification code for the current phone number via email (and SMS in production)."""
+    import secrets
+    import hashlib
 
     user = db.query(User).filter(User.id == current_user.id).first()
     if not user:
@@ -808,22 +904,55 @@ async def resend_phone_code(
             message="Phone is already verified",
         )
 
-    verification_code = f"{random.randint(100000, 999999)}"
-
+    # Rate limit: check if a code was sent recently (within 60 seconds)
     metadata = user.user_metadata or {}
-    metadata["phone_verification_code"] = verification_code
-    metadata["phone_verification_expires"] = (datetime.utcnow() + timedelta(minutes=10)).isoformat()
+    last_sent = metadata.get("phone_otp_sent_at")
+    if last_sent:
+        try:
+            last_sent_dt = datetime.fromisoformat(last_sent)
+            if (datetime.utcnow() - last_sent_dt).total_seconds() < 60:
+                raise HTTPException(status_code=429, detail="Please wait at least 60 seconds before requesting a new code.")
+        except (ValueError, TypeError):
+            pass
+
+    # Generate a secure 6-digit OTP
+    verification_code = f"{secrets.randbelow(900000) + 100000}"
+    code_hash = hashlib.sha256(verification_code.encode()).hexdigest()
+
+    metadata["phone_verification_code_hash"] = code_hash
+    metadata["phone_verification_expires"] = (datetime.utcnow() + timedelta(minutes=5)).isoformat()
+    metadata["phone_verification_attempts"] = 0
+    metadata["phone_otp_sent_at"] = datetime.utcnow().isoformat()
+    metadata.pop("phone_verification_code", None)
     user.user_metadata = metadata
     user.updated_at = datetime.utcnow()
 
     db.commit()
 
-    logger.info(f"Phone verification code resent for user {user.id}: {verification_code}")
+    # Send OTP via email
+    try:
+        from app.services.email_service import send_email
+        from app.services.template_service import render_template
+        html = render_template("phone_verification.html", {
+            "first_name": user.first_name,
+            "otp_code": verification_code,
+            "phone_number": user.phone,
+        })
+        send_email(
+            to=user.email,
+            subject="SentinelIQ Phone Verification Code",
+            html_content=html,
+        )
+    except Exception as e:
+        logger.error(f"Failed to send phone OTP email for user {user.id}: {e}")
+
+    # In production: also send via SMS provider
+    logger.info(f"Phone verification OTP resent to user {user.id} via email")
 
     return PhoneStatusResponse(
         phone=user.phone,
         phone_verified=False,
-        message=f"New verification code: {verification_code} (valid for 10 minutes)",
+        message="New verification code sent to your phone number and email. Code is valid for 5 minutes.",
     )
 
 

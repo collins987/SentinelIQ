@@ -301,12 +301,27 @@ async def analytics_pipeline_consumer():
 async def audit_logger_consumer():
     """
     Consume from users.created topic (separate consumer group).
-    Writes immutable audit log entries.
+    Writes immutable audit log entries to DB and archives to MinIO WORM storage.
     """
     from app.services.kafka_service import KafkaConfig
 
     config = KafkaConfig()
     config.group_id = "onboarding-audit-logger"
+
+    # Initialize MinIO WORM storage client (graceful degradation)
+    worm_client = None
+    try:
+        from app.services.worm_storage import WORMStorageClient, BucketType
+        worm_client = WORMStorageClient()
+        if worm_client.client:
+            worm_client.setup_worm_bucket(BucketType.AUDIT_LOGS)
+            logger.info("MinIO WORM storage connected for audit archival")
+        else:
+            worm_client = None
+            logger.warning("MinIO WORM client not available, audit archival to object storage disabled")
+    except Exception as e:
+        logger.warning(f"MinIO WORM initialization skipped: {e}")
+        worm_client = None
 
     try:
         from aiokafka import AIOKafkaConsumer as _AC
@@ -329,13 +344,16 @@ async def audit_logger_consumer():
             event = message.value
             try:
                 user_id = event.get("user_id", "unknown")
+                audit_id = str(uuid.uuid4())
+                audit_timestamp = datetime.utcnow()
+
                 # Write audit log to DB
                 from app.core.db import SessionLocal
                 from app.models import AuditLog
                 db = SessionLocal()
                 try:
                     audit = AuditLog(
-                        id=str(uuid.uuid4()),
+                        id=audit_id,
                         actor_id=user_id if user_id != "unknown" else None,
                         action="user.created.audit",
                         target=user_id,
@@ -346,12 +364,54 @@ async def audit_logger_consumer():
                             "source": event.get("source", "kafka_consumer"),
                             "original_event_id": event.get("event_id"),
                         },
-                        timestamp=datetime.utcnow(),
+                        timestamp=audit_timestamp,
                     )
                     db.add(audit)
                     db.commit()
                 finally:
                     db.close()
+
+                # Archive to MinIO WORM storage (immutable compliance copy)
+                if worm_client:
+                    try:
+                        audit_record = json.dumps({
+                            "audit_id": audit_id,
+                            "actor_id": user_id,
+                            "action": "user.created.audit",
+                            "target": user_id,
+                            "event_metadata": {
+                                "event": event.get("event"),
+                                "role": event.get("role"),
+                                "org_id": event.get("org_id"),
+                                "source": event.get("source", "kafka_consumer"),
+                                "original_event_id": event.get("event_id"),
+                            },
+                            "timestamp": audit_timestamp.isoformat(),
+                            "archived_at": datetime.utcnow().isoformat(),
+                        }, indent=2)
+
+                        # Store as date-partitioned object for efficient retrieval
+                        date_prefix = audit_timestamp.strftime("%Y/%m/%d")
+                        object_name = f"{date_prefix}/{audit_id}.json"
+
+                        version_id = worm_client.store_immutable_object(
+                            bucket_type=BucketType.AUDIT_LOGS,
+                            object_name=object_name,
+                            data=audit_record.encode("utf-8"),
+                            content_type="application/json",
+                            metadata={
+                                "x-amz-meta-actor-id": user_id,
+                                "x-amz-meta-action": "user.created.audit",
+                                "x-amz-meta-audit-id": audit_id,
+                            },
+                        )
+                        if version_id:
+                            logger.info(f"Audit archived to WORM: {object_name} (v{version_id})")
+                        else:
+                            logger.warning(f"Audit WORM archival returned no version_id: {object_name}")
+                    except Exception as worm_err:
+                        # WORM failure must NOT block audit pipeline
+                        logger.error(f"WORM archival failed (non-blocking): {worm_err}")
 
                 # Structured log (Loki-compatible)
                 log_event(
@@ -362,6 +422,7 @@ async def audit_logger_consumer():
                         "role": event.get("role"),
                         "timestamp": event.get("timestamp"),
                         "source": "kafka_audit_consumer",
+                        "worm_archived": worm_client is not None,
                     },
                 )
                 _inc(onboarding_events_processed, consumer="audit_logger", status="success")
