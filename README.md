@@ -62,29 +62,7 @@ SELECT * FROM table_name LIMIT 10;
 \q
 ```
 
-## 6. Backend Setup (Local Development)
-
-```bash
-# Move to backend project folder
-cd backend
-
-# Create a Python virtual environment
-python -m venv venv
-
-# Activate virtual environment on Windows
-venv\Scripts\activate
-
-# Activate virtual environment on Linux or macOS
-source venv/bin/activate
-
-# Install backend dependencies
-pip install -r requirements.txt
-
-# Run FastAPI app locally
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-## 7. Important Ports
+## 6. Important Ports
 
 - 5000 -> Welcome Page
 - 3000 -> Admin Dashboard
@@ -93,7 +71,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - 8000 -> Backend API
 - 5432 -> PostgreSQL
 
-## 8. Useful Development Commands
+## 7. Useful Development Commands
 
 ```bash
 # Show running containers
@@ -111,14 +89,22 @@ docker compose up --build
 
 ```bash
 # Start Welcome frontend (port 5000)
-cd frontend/welcome && npm install && npm run dev
+cd frontend/welcome
+npm install
+npm run dev
 
 # Start Admin frontend (port 3000)
-cd frontend && npm install && npm run dev
+cd frontend
+npm install
+npm run dev
 
 # Start Analyst frontend (port 4100)
-cd frontend/analystdashboard && npm install && npm run dev
+cd frontend/analystdashboard
+npm install
+npm run dev
 
 # Start Viewer frontend (port 4000)
-cd frontend/userdashboard && npm install && npm run dev
+cd frontend/userdashboard
+npm install
+npm run dev
 ```
