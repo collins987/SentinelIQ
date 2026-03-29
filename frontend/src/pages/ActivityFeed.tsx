@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { useGetEventsQuery } from '../services/dashboardApi';
 import { clearEvents } from '../features/dashboardSlice';
@@ -10,7 +10,6 @@ import {
   ArrowPathIcon,
   FunnelIcon,
   PauseIcon,
-  PlayIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline';
 

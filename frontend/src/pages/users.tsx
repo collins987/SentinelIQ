@@ -9,15 +9,12 @@ import {
   getRiskColorClass,
   getRoleBadgeClass,
   getStatusBadgeClass,
-  maskEmail,
 } from '../utils/helpers';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import clsx from 'clsx';
 import {
   MagnifyingGlassIcon,
   FunnelIcon,
-  ArrowUpIcon,
-  ArrowDownIcon,
 } from '@heroicons/react/24/outline';
 
 type SortField = 'created_at' | 'login_time' | 'risk_score' | 'email';

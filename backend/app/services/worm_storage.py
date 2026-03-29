@@ -115,7 +115,7 @@ class WORMStorageClient:
         endpoint: str = None,
         access_key: str = None,
         secret_key: str = None,
-        secure: bool = False
+        secure: Optional[bool] = None
     ):
         """Initialize MinIO WORM client."""
         if not MINIO_AVAILABLE:
@@ -123,10 +123,13 @@ class WORMStorageClient:
             self.client = None
             return
         
-        self.endpoint = endpoint or getattr(settings, 'MINIO_ENDPOINT', 'localhost:9000')
+        self.endpoint = endpoint or getattr(settings, 'MINIO_ENDPOINT', 'minio:9000')
         self.access_key = access_key or getattr(settings, 'MINIO_ACCESS_KEY', 'minioadmin')
         self.secret_key = secret_key or getattr(settings, 'MINIO_SECRET_KEY', 'minioadmin')
-        self.secure = secure or getattr(settings, 'MINIO_SECURE', False)
+        if secure is None:
+            self.secure = getattr(settings, 'MINIO_SECURE', False)
+        else:
+            self.secure = secure
         
         try:
             self.client = Minio(

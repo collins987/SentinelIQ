@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { useAnalyst } from '../src/context/AnalystContext';
+import ProtectedRoute from '../src/components/ProtectedRoute';
 import {
   getAlerts, getHighRiskUsers, getRiskInsights, listInvestigations,
   inspectUser, createInvestigation, getInvestigation,

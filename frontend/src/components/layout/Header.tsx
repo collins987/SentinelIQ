@@ -36,7 +36,6 @@ export default function Header() {
 
   const handleSettings = () => {
     dispatch(addNotification({
-      id: `settings-${Date.now()}`,
       type: 'info',
       message: 'Settings page coming soon!',
     }));

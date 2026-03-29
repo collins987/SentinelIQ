@@ -173,6 +173,11 @@ MINIO_SECURE = os.getenv("MINIO_SECURE", "false").lower() == "true"
 VAULT_ADDR = os.getenv("VAULT_ADDR", "http://vault:8200")
 VAULT_TOKEN = os.getenv("VAULT_TOKEN", "devroot")
 VAULT_SECRET_PATH = os.getenv("VAULT_SECRET_PATH", "secret/data/sentineliq")
+VAULT_MODE = os.getenv("VAULT_MODE", "dev").strip().lower()
+VAULT_ENABLE_TOKEN_RENEWAL = os.getenv(
+    "VAULT_ENABLE_TOKEN_RENEWAL",
+    "false" if VAULT_MODE == "dev" else "true"
+).lower() == "true"
 
 # Metrics
 METRICS_ENABLED = os.getenv("METRICS_ENABLED", "true").lower() == "true"
@@ -196,6 +201,9 @@ RISK_THRESHOLDS = {
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 KAFKA_ENABLED = os.getenv("KAFKA_ENABLED", "true").lower() == "true"
 KAFKA_CONSUMER_GROUP = os.getenv("KAFKA_CONSUMER_GROUP", "sentineliq-consumers")
+KAFKA_STARTUP_RETRIES = int(os.getenv("KAFKA_STARTUP_RETRIES", "8"))
+KAFKA_STARTUP_RETRY_DELAY_SECONDS = float(os.getenv("KAFKA_STARTUP_RETRY_DELAY_SECONDS", "2.0"))
+ENABLE_BACKGROUND_CONSUMERS = os.getenv("ENABLE_BACKGROUND_CONSUMERS", "true").lower() == "true"
 
 # ============================================================================
 # ML Configuration

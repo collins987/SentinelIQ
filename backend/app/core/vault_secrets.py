@@ -120,16 +120,27 @@ def seed_secrets_to_vault() -> bool:
     }
 
     seeded = 0
+    updated = 0
     for path, data in seed_map.items():
         existing = _read_kv(client, path)
         if existing is None:
             if _write_kv(client, path, data):
                 logger.info(f"Vault secret seeded: {path}")
                 seeded += 1
+        elif path == VAULT_SECRET_PATHS["minio"]:
+            # Keep MinIO endpoint/auth aligned with current deployment mode.
+            desired = {k: str(v) for k, v in data.items()}
+            current = {k: str(existing.get(k, "")) for k in desired.keys()}
+            if current != desired:
+                if _write_kv(client, path, data):
+                    logger.info(f"Vault secret updated: {path}")
+                    updated += 1
         else:
             logger.debug(f"Vault secret already exists: {path}")
 
-    logger.info(f"Vault secret seeding complete ({seeded} new secrets written)")
+    logger.info(
+        f"Vault secret seeding complete ({seeded} new, {updated} updated)"
+    )
     return True
 
 

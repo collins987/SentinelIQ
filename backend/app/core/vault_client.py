@@ -29,7 +29,13 @@ import json
 import hvac
 from hvac.exceptions import VaultError, InvalidPath, Forbidden
 
-from app.config import VAULT_ADDR, VAULT_TOKEN, VAULT_SECRET_PATH
+from app.config import (
+    VAULT_ADDR,
+    VAULT_TOKEN,
+    VAULT_SECRET_PATH,
+    VAULT_MODE,
+    VAULT_ENABLE_TOKEN_RENEWAL,
+)
 
 logger = logging.getLogger("sentineliq.vault")
 
@@ -68,6 +74,10 @@ class VaultConfig:
     
     # Token renewal threshold (renew when less than this time remaining)
     renewal_threshold_seconds: int = 300
+
+    # Runtime mode controls token-renew behavior and log verbosity
+    mode: str = VAULT_MODE
+    enable_token_renewal: bool = VAULT_ENABLE_TOKEN_RENEWAL
 
 
 class VaultClient:
@@ -147,6 +157,9 @@ class VaultClient:
             await asyncio.sleep(60)
 
     def start_token_renewal_task(self):
+        if not self.config.enable_token_renewal:
+            logger.info("Vault token renewal disabled for current mode")
+            return
         if not hasattr(self, '_token_renewal_task'):
             self._token_renewal_task = asyncio.create_task(self._background_token_renewal())
 
@@ -168,7 +181,11 @@ class VaultClient:
                     logger.info("Vault token renewed")
                     vault_token_renewals.inc()
                 except Exception as e:
-                    logger.warning(f"Failed to renew Vault token: {e}")
+                    # Dev Vault tokens are commonly non-renewable; keep logs actionable.
+                    if self.config.mode == "dev":
+                        logger.info(f"Vault token renewal skipped in dev mode: {e}")
+                    else:
+                        logger.warning(f"Failed to renew Vault token: {e}")
     
     # =========================================================================
     # KV Secrets Engine
@@ -265,9 +282,29 @@ class VaultClient:
     # Transit Engine (Encryption as a Service)
     # =========================================================================
     
+    def _ensure_transit_engine(self) -> bool:
+        """Ensure transit secrets engine is enabled."""
+        try:
+            mounts = self._client.sys.list_mounted_secrets_engines() or {}
+            transit_path = f"{self.config.transit_mount}/"
+            if transit_path in mounts:
+                return True
+
+            self._client.sys.enable_secrets_engine(
+                backend_type="transit",
+                path=self.config.transit_mount,
+            )
+            logger.info(f"Enabled Vault transit engine at path '{self.config.transit_mount}'")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to enable transit engine: {e}")
+            return False
+
     def _ensure_transit_key(self, key_name: str) -> bool:
         """Ensure a transit encryption key exists."""
         try:
+            if not self._ensure_transit_engine():
+                return False
             # Try to read key info
             self._client.secrets.transit.read_key(
                 name=key_name,
@@ -289,6 +326,17 @@ class VaultClient:
                 return False
         except Exception as e:
             logger.error(f"Error checking transit key {key_name}: {e}")
+            return False
+
+    def ensure_transit_ready(self, key_name: str) -> bool:
+        """Public helper to verify transit engine and key readiness."""
+        if not self._initialized:
+            return False
+        try:
+            self._ensure_authenticated()
+            return self._ensure_transit_key(key_name)
+        except Exception as e:
+            logger.error(f"Transit readiness check failed for {key_name}: {e}")
             return False
     
     def encrypt(self, key_name: str, plaintext: str, user_id: str = None, role: str = None) -> Optional[str]:
@@ -505,8 +553,8 @@ def get_vault_client(retries: int = 3, delay: float = 2.0) -> VaultClient:
         _vault_last_error = last_error
         _vault_state = "unhealthy"
         if attempt < retries:
-            import asyncio
-            asyncio.run(asyncio.sleep(delay))
+            import time
+            time.sleep(delay)
     # If all retries failed
     _vault_state = "unhealthy" if _vault_client else "not_configured"
     return _vault_client

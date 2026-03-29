@@ -8,7 +8,6 @@ import clsx from 'clsx';
 import {
   DocumentArrowDownIcon,
   FunnelIcon,
-  MagnifyingGlassIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 

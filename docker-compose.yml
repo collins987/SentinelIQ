@@ -17,6 +17,14 @@ services:
       - .env
     environment:
       SMTP_HOST: mailhog
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_SECURE: "false"
+      VAULT_MODE: ${VAULT_MODE:-dev}
+      KAFKA_STARTUP_RETRIES: ${KAFKA_STARTUP_RETRIES:-8}
+      KAFKA_STARTUP_RETRY_DELAY_SECONDS: ${KAFKA_STARTUP_RETRY_DELAY_SECONDS:-2.0}
+      ENABLE_BACKGROUND_CONSUMERS: "false"
       ADMIN_FRONTEND_URL: ${ADMIN_FRONTEND_URL:-http://localhost:3000}
       ANALYST_FRONTEND_URL: ${ANALYST_FRONTEND_URL:-http://localhost:4100}
       VIEWER_FRONTEND_URL: ${VIEWER_FRONTEND_URL:-http://localhost:4000}
@@ -26,6 +34,56 @@ services:
       redis:
         condition: service_healthy
       mailhog:
+        condition: service_started
+      minio:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      vault:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - backend
+
+  api-workers:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sentineliq_api_workers
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+    volumes:
+      - ./backend/app:/app/app
+    env_file:
+      - .env
+    environment:
+      SMTP_HOST: mailhog
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_SECURE: "false"
+      VAULT_MODE: ${VAULT_MODE:-dev}
+      KAFKA_STARTUP_RETRIES: ${KAFKA_STARTUP_RETRIES:-8}
+      KAFKA_STARTUP_RETRY_DELAY_SECONDS: ${KAFKA_STARTUP_RETRY_DELAY_SECONDS:-2.0}
+      ENABLE_BACKGROUND_CONSUMERS: "true"
+      ADMIN_FRONTEND_URL: ${ADMIN_FRONTEND_URL:-http://localhost:3000}
+      ANALYST_FRONTEND_URL: ${ANALYST_FRONTEND_URL:-http://localhost:4100}
+      VIEWER_FRONTEND_URL: ${VIEWER_FRONTEND_URL:-http://localhost:4000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+      minio:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      vault:
         condition: service_started
     restart: unless-stopped
     networks:
@@ -191,10 +249,14 @@ services:
   postgres-exporter:
     image: prometheuscommunity/postgres-exporter:latest
     container_name: sentineliq_postgres_exporter
+    command:
+      - "--config.file=/etc/postgres_exporter/postgres_exporter.yml"
     environment:
       DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable"
     ports:
       - "9187:9187"
+    volumes:
+      - ./monitoring/postgres_exporter.yml:/etc/postgres_exporter/postgres_exporter.yml:ro
     depends_on:
       - postgres
     restart: unless-stopped

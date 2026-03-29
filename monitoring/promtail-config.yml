@@ -13,6 +13,10 @@ clients:
     tenant_id: sentineliq
     batchwait: 1s
     batchsize: 1048576  # 1MB
+    backoff_config:
+      min_period: 500ms
+      max_period: 10s
+      max_retries: 20
 
 scrape_configs:
   # ============================================================================

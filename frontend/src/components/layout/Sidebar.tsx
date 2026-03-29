@@ -8,7 +8,6 @@ import {
   ServerIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  UserCircleIcon,
   ScaleIcon,
   ShieldCheckIcon,
   FingerPrintIcon,

@@ -1,10 +1,6 @@
 {
   "name": "sentineliq-dashboard",
   "private": true,
-  "workspaces": [
-    "userdashboard",
-    "analyticsdashboard"
-  ],
   "version": "2.0.0",
   "type": "module",
   "scripts": {
@@ -28,6 +24,7 @@
     "tailwind-merge": "^2.2.0"
   },
   "devDependencies": {
+    "@alloc/quick-lru": "^5.2.0",
     "@types/react": "^18.2.48",
     "@types/react-dom": "^18.2.18",
     "@typescript-eslint/eslint-plugin": "^6.19.0",

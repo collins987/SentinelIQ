@@ -23,7 +23,7 @@ export default function SystemHealth() {
   const { isAuthenticated } = useAppSelector((state) => state.auth);
   const [selectedService, setSelectedService] = useState<ServiceName | null>(null);
   
-  const { data: health, isLoading: healthLoading, error: healthError } = useGetSystemHealthQuery(undefined, { skip: !isAuthenticated, pollingInterval: 30000 });
+  const { data: health, isLoading: healthLoading } = useGetSystemHealthQuery(undefined, { skip: !isAuthenticated, pollingInterval: 30000 });
   const { data: metrics, isLoading: metricsLoading } = useGetSystemMetricsQuery(selectedTimeRange, { skip: !isAuthenticated });
   
   const isLoading = healthLoading || metricsLoading;
@@ -59,13 +59,6 @@ export default function SystemHealth() {
   
   const currentStatus = health?.status ? statusConfig[health.status] : statusConfig.healthy;
   const StatusIcon = currentStatus.icon;
-  
-  const serviceIcons: Record<string, typeof ServerIcon> = {
-    database: CircleStackIcon,
-    redis: CpuChipIcon,
-    kafka: SignalIcon,
-    vault: GlobeAltIcon,
-  };
   
   return (
     <div className="space-y-6 animate-fade-in">

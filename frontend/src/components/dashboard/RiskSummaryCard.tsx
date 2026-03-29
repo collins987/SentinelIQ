@@ -1,5 +1,5 @@
 import type { RiskSummary } from '../../services/dashboardApi';
-import { formatNumber, formatPercent } from '../../utils/helpers';
+import { formatNumber } from '../../utils/helpers';
 import clsx from 'clsx';
 import {
   ShieldCheckIcon,

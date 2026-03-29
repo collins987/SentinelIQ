@@ -31,6 +31,11 @@ from app.core.logging import logger
 from app.services.graph_service import router as graph_router
 from app.services.message_center import router as message_router
 import traceback
+from app.config import (
+    KAFKA_STARTUP_RETRIES,
+    KAFKA_STARTUP_RETRY_DELAY_SECONDS,
+    ENABLE_BACKGROUND_CONSUMERS,
+)
 
 
 # Lifespan context manager for startup/shutdown
@@ -90,7 +95,23 @@ async def process_kafka_message(message, app):
 
 async def kafka_consumer_worker(app):
     """Background Kafka consumer with retry and DLQ."""
-    consumer = await KafkaConsumerService.create(KAFKA_CONSUMER_TOPICS)
+    consumer = None
+    for attempt in range(1, KAFKA_STARTUP_RETRIES + 1):
+        try:
+            consumer = await KafkaConsumerService.create(KAFKA_CONSUMER_TOPICS)
+            if consumer and consumer.is_connected:
+                app.state.kafka_consumer_ready = True
+                logger.info("Kafka consumer worker connected")
+                break
+        except Exception as e:
+            logger.warning(f"Kafka consumer startup attempt {attempt}/{KAFKA_STARTUP_RETRIES} failed: {e}")
+        await asyncio.sleep(KAFKA_STARTUP_RETRY_DELAY_SECONDS)
+
+    if not consumer or not consumer.is_connected:
+        app.state.kafka_consumer_ready = False
+        logger.warning("Kafka consumer worker unavailable after retries")
+        return
+
     try:
         async for message in consumer.consume():
             for _ in range(3):
@@ -104,6 +125,7 @@ async def kafka_consumer_worker(app):
                 # After retries, increment DLQ metric
                 kafka_dlq_counter.labels(message.topic, message.value.get('role', 'user')).inc()
     finally:
+        app.state.kafka_consumer_ready = False
         await consumer.close()
 
 @asynccontextmanager
@@ -116,6 +138,13 @@ async def lifespan(app: FastAPI):
     - Kafka connections (optional)
     - Vault client (optional)
     """
+    app.state.kafka_ready = False
+    app.state.kafka_consumer_ready = False
+    app.state.kafka_onboarding_ready = False
+    app.state.vault_ready = False
+    app.state.vault_transit_ready = False
+    app.state.worm_storage_ready = False
+
     # Startup - Database (required)
     try:
         Base.metadata.create_all(bind=engine)
@@ -135,29 +164,47 @@ async def lifespan(app: FastAPI):
     
 
     # Initialize Kafka producer and start background consumer
-    try:
-        from app.services.kafka_service import get_kafka_producer
-        await get_kafka_producer()
-        logger.info("Kafka producer initialized")
-        # Start background consumer
-        app.state.kafka_consumer_task = asyncio.create_task(kafka_consumer_worker(app))
-        logger.info("Kafka background consumer started")
-        # Start onboarding pipeline consumers (email, risk, analytics, audit)
+    if ENABLE_BACKGROUND_CONSUMERS:
         try:
-            from app.services.onboarding_consumers import start_onboarding_consumers
-            app.state.onboarding_tasks = await start_onboarding_consumers()
-            logger.info(f"Onboarding consumers started ({len(app.state.onboarding_tasks)} workers)")
+            from app.services.kafka_service import get_kafka_producer
+            producer = None
+            for attempt in range(1, KAFKA_STARTUP_RETRIES + 1):
+                producer = await get_kafka_producer(retries=1, delay=KAFKA_STARTUP_RETRY_DELAY_SECONDS)
+                if producer and producer.is_connected:
+                    app.state.kafka_ready = True
+                    logger.info(f"Kafka producer initialized on attempt {attempt}/{KAFKA_STARTUP_RETRIES}")
+                    break
+                logger.warning(f"Kafka producer startup attempt {attempt}/{KAFKA_STARTUP_RETRIES} failed")
+                await asyncio.sleep(KAFKA_STARTUP_RETRY_DELAY_SECONDS)
+
+            if app.state.kafka_ready:
+                # Start background consumer
+                app.state.kafka_consumer_task = asyncio.create_task(kafka_consumer_worker(app))
+                logger.info("Kafka background consumer started")
+
+                # Start onboarding pipeline consumers (email, risk, analytics, audit)
+                try:
+                    from app.services.onboarding_consumers import start_onboarding_consumers
+                    app.state.onboarding_tasks = await start_onboarding_consumers()
+                    app.state.kafka_onboarding_ready = len(app.state.onboarding_tasks) > 0
+                    logger.info(f"Onboarding consumers started ({len(app.state.onboarding_tasks)} workers)")
+                except Exception as e:
+                    app.state.kafka_onboarding_ready = False
+                    logger.warning(f"Onboarding consumers failed to start: {e}")
+            else:
+                logger.warning("Kafka producer unavailable after retries; background consumers not started")
         except Exception as e:
-            logger.warning(f"Onboarding consumers failed to start: {e}")
-    except Exception as e:
-        logger.warning(f"Kafka initialization skipped: {e}")
+            logger.warning(f"Kafka initialization skipped: {e}")
+    else:
+        logger.info("Background Kafka consumers disabled for this process")
     
     # Initialize Vault (optional - graceful degradation)
     # Seed secrets to Vault KV, then load them back to replace static .env values
     try:
         from app.core.vault_client import get_vault_client
         vault = get_vault_client()
-        if vault.is_authenticated():
+        if vault and vault.is_authenticated():
+            app.state.vault_ready = True
             logger.info("Vault client authenticated")
             # Seed current config into Vault KV (first-run bootstrap)
             from app.core.vault_secrets import seed_secrets_to_vault, load_secrets_from_vault, apply_secrets_to_config
@@ -166,14 +213,32 @@ async def lifespan(app: FastAPI):
             vault_secrets = load_secrets_from_vault()
             apply_secrets_to_config(vault_secrets)
             logger.info("Vault KV secrets applied — static credentials replaced")
-            # Ensure Transit engine is ready for PII encryption
-            try:
-                vault._ensure_transit_key("sentineliq-pii")
+            # Ensure Transit engine readiness is truthful and explicit.
+            app.state.vault_transit_ready = vault.ensure_transit_ready("sentineliq-pii")
+            if app.state.vault_transit_ready:
                 logger.info("Vault Transit engine ready for PII encryption")
-            except Exception as te:
-                logger.warning(f"Vault Transit key setup skipped: {te}")
+            else:
+                logger.warning("Vault Transit engine not ready; encryption remains in degraded mode")
+        else:
+            logger.warning("Vault client not authenticated; startup in degraded mode")
     except Exception as e:
         logger.warning(f"Vault initialization skipped: {e}")
+
+    # Initialize WORM storage readiness signal (optional - graceful degradation)
+    try:
+        from app.services.worm_storage import WORMStorageClient, BUCKET_CONFIGS, BucketType
+        worm_client = WORMStorageClient()
+        if worm_client.client:
+            audit_bucket = BUCKET_CONFIGS[BucketType.AUDIT_LOGS].name
+            if worm_client.client.bucket_exists(audit_bucket) or worm_client.setup_worm_bucket(BucketType.AUDIT_LOGS):
+                app.state.worm_storage_ready = True
+                logger.info("MinIO WORM storage connected for audit archival")
+            else:
+                logger.warning("MinIO WORM storage not ready for audit archival")
+        else:
+            logger.warning("MinIO WORM client unavailable; startup in degraded mode")
+    except Exception as e:
+        logger.warning(f"WORM readiness initialization skipped: {e}")
     
     # Initialize Redis Stream Manager (optional - graceful degradation)
     try:
@@ -183,6 +248,18 @@ async def lifespan(app: FastAPI):
             logger.info("Redis stream manager initialized")
     except Exception as e:
         logger.warning(f"Redis initialization skipped: {e}")
+
+    logger.info(
+        "Startup subsystem readiness summary",
+        extra={
+            "kafka_ready": app.state.kafka_ready,
+            "kafka_consumer_ready": app.state.kafka_consumer_ready,
+            "kafka_onboarding_ready": app.state.kafka_onboarding_ready,
+            "vault_ready": app.state.vault_ready,
+            "vault_transit_ready": app.state.vault_transit_ready,
+            "worm_storage_ready": app.state.worm_storage_ready,
+        },
+    )
     
     yield
     
@@ -426,7 +503,7 @@ async def detailed_health_check():
     """
     Detailed health check with component status.
     
-    Checks database, Redis, Kafka, and Vault connectivity.
+    Checks database, Redis, Kafka, Vault, and WORM connectivity.
     """
     health_status = {
         "status": "ok",
@@ -459,24 +536,53 @@ async def detailed_health_check():
     
     # Kafka check (optional)
     try:
-        from app.services.kafka_service import _producer
-        if _producer and _producer._started:
-            health_status["components"]["kafka"] = "healthy"
+        if not ENABLE_BACKGROUND_CONSUMERS:
+            health_status["components"]["kafka"] = "disabled_for_web_process"
+            health_status["components"]["kafka_consumer"] = "disabled"
+            health_status["components"]["kafka_onboarding_consumers"] = "disabled"
         else:
-            health_status["components"]["kafka"] = "not_configured"
+            producer_ready = bool(getattr(app.state, "kafka_ready", False))
+            consumer_ready = bool(getattr(app.state, "kafka_consumer_ready", False))
+            onboarding_ready = bool(getattr(app.state, "kafka_onboarding_ready", False))
+
+            if producer_ready and consumer_ready:
+                health_status["components"]["kafka"] = "healthy"
+            elif producer_ready:
+                health_status["components"]["kafka"] = "degraded: consumer not ready"
+                health_status["status"] = "degraded"
+            else:
+                health_status["components"]["kafka"] = "not_configured"
+
+            health_status["components"]["kafka_consumer"] = "healthy" if consumer_ready else "unhealthy"
+            health_status["components"]["kafka_onboarding_consumers"] = "healthy" if onboarding_ready else "unhealthy"
+            if not onboarding_ready and producer_ready:
+                health_status["status"] = "degraded"
     except Exception:
         health_status["components"]["kafka"] = "not_configured"
     
     # Vault check (optional)
     try:
-        from app.core.vault_client import get_vault_client
-        vault = get_vault_client()
-        if vault.is_authenticated():
+        from app.core.vault_client import get_vault_health_status
+        vault_health = get_vault_health_status()
+        if vault_health.get("status") == "healthy":
             health_status["components"]["vault"] = "healthy"
         else:
             health_status["components"]["vault"] = "not_authenticated"
+            health_status["status"] = "degraded"
     except Exception:
         health_status["components"]["vault"] = "not_configured"
+
+    # Vault Transit readiness check (optional)
+    transit_ready = bool(getattr(app.state, "vault_transit_ready", False))
+    health_status["components"]["vault_transit_ready"] = "healthy" if transit_ready else "unhealthy"
+    if not transit_ready:
+        health_status["status"] = "degraded"
+
+    # WORM storage readiness check (optional)
+    worm_ready = bool(getattr(app.state, "worm_storage_ready", False))
+    health_status["components"]["worm_storage"] = "healthy" if worm_ready else "unhealthy"
+    if not worm_ready:
+        health_status["status"] = "degraded"
     
     return health_status
 

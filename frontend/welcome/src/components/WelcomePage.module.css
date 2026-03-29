@@ -1,0 +1,675 @@
+/* ============================================================
+   SENTINELIQ WELCOME PAGE - MODERN DARK THEME
+   ============================================================ */
+
+/* ============================================================
+   PAGE BACKGROUND & LAYOUT
+   ============================================================ */
+
+.main {
+  width: 100%;
+  min-height: 100vh;
+  background: linear-gradient(
+    135deg,
+    #0B0F19 0%,
+    #0E1428 25%,
+    #1a1f3a 50%,
+    #162454 75%,
+    #0B0F19 100%
+  );
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  position: relative;
+}
+
+/* Add subtle animated background shapes */
+.main::before {
+  content: '';
+  position: fixed;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(
+    circle at 20% 50%,
+    rgba(124, 58, 237, 0.08) 0%,
+    transparent 50%
+  );
+  pointer-events: none;
+  animation: gradientShift 15s ease infinite;
+  z-index: 0;
+}
+
+.main::after {
+  content: '';
+  position: fixed;
+  bottom: -50%;
+  right: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(
+    circle at 80% 50%,
+    rgba(30, 58, 138, 0.08) 0%,
+    transparent 50%
+  );
+  pointer-events: none;
+  animation: gradientShift 20s ease reverse infinite;
+  z-index: 0;
+}
+
+@keyframes gradientShift {
+  0%, 100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(50px, 50px);
+  }
+}
+
+/* ============================================================
+   NAVBAR
+   ============================================================ */
+
+.navbar {
+  position: relative;
+  z-index: 100;
+  padding: 1.5rem 0;
+  background: rgba(11, 15, 25, 0.5);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(124, 58, 237, 0.1);
+  animation: slideDown 0.6s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.navContainer {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 2rem;
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+}
+
+.logoSection {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.logoIcon {
+  width: 2.5rem;
+  height: 2.5rem;
+  object-fit: contain;
+  border-radius: 8px;
+  filter: drop-shadow(0 0 10px rgba(124, 58, 237, 0.5));
+}
+
+.logoText {
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    sans-serif;
+  font-size: 1.35rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #7C3AED 0%, #3B82F6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.5px;
+}
+
+/* ============================================================
+   HERO SECTION - CENTERED LAYOUT
+   ============================================================ */
+
+.heroSection {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 2rem;
+  position: relative;
+  z-index: 1;
+  min-height: 60vh;
+}
+
+.heroContent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 2rem;
+  max-width: 800px;
+  width: 100%;
+  animation: fadeInUp 0.8s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Main Heading */
+.heroTitle {
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    sans-serif;
+  font-size: clamp(2.5rem, 8vw, 4rem);
+  font-weight: 800;
+  line-height: 1.1;
+  margin: 0;
+  color: #ffffff;
+  letter-spacing: -0.5px;
+  background: linear-gradient(135deg, #ffffff 0%, #e0e7ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 0 30px rgba(124, 58, 237, 0.3);
+}
+
+/* Description */
+.heroDescription {
+  font-size: clamp(1rem, 2vw, 1.125rem);
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.75);
+  margin: 0;
+  max-width: 600px;
+  font-weight: 400;
+  letter-spacing: 0.3px;
+}
+
+/* ============================================================
+   SEARCH BAR
+   ============================================================ */
+
+.searchBar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: rgba(30, 58, 138, 0.15);
+  border: 1px solid rgba(124, 58, 237, 0.3);
+  border-radius: 50px;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  margin-top: 1rem;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+}
+
+.searchBar:hover {
+  border-color: rgba(124, 58, 237, 0.5);
+  background: rgba(30, 58, 138, 0.25);
+  box-shadow: 0 8px 40px rgba(124, 58, 237, 0.15);
+}
+
+.searchBar.focused {
+  border-color: #7C3AED;
+  background: rgba(30, 58, 138, 0.3);
+  box-shadow: 0 12px 50px rgba(124, 58, 237, 0.25);
+}
+
+.searchIcon {
+  font-size: 1.25rem;
+  line-height: 1;
+  opacity: 0.7;
+  filter: drop-shadow(0 0 6px rgba(124, 58, 237, 0.3));
+}
+
+.searchInput {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: none;
+  font-size: 1rem;
+  color: #ffffff;
+  font-family: 'Inter', sans-serif;
+  padding: 0;
+}
+
+.searchInput::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ============================================================
+   FEATURE HIGHLIGHTS
+   ============================================================ */
+
+.featuresContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+  padding: 1.5rem;
+  background: rgba(124, 58, 237, 0.08);
+  border: 1px solid rgba(124, 58, 237, 0.15);
+  border-radius: 20px;
+  width: 100%;
+}
+
+.featureTag {
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  padding: 0.5rem 1rem;
+  background: rgba(124, 58, 237, 0.1);
+  border-radius: 20px;
+  border: 1px solid rgba(124, 58, 237, 0.2);
+  transition: all 0.3s ease;
+}
+
+.featureTag:hover {
+  background: rgba(124, 58, 237, 0.2);
+  border-color: rgba(124, 58, 237, 0.4);
+  color: #ffffff;
+}
+
+.featureDivider {
+  color: rgba(124, 58, 237, 0.3);
+  font-weight: 300;
+}
+
+/* ============================================================
+   ROLE SELECTION SECTION
+   ============================================================ */
+
+.roleSection {
+  padding: 80px 2rem;
+  background: linear-gradient(135deg, #0B0F19 0%, #1E3A8A 100%);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  position: relative;
+  z-index: 1;
+}
+
+.roleContainer {
+  max-width: 1200px;
+  margin: 0 auto;
+  animation: fadeIn 1s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.roleTitle {
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    sans-serif;
+  font-size: clamp(1.75rem, 5vw, 2.5rem);
+  font-weight: 800;
+  text-align: center;
+  color: #ffffff;
+  margin: 0 0 2rem 0;
+  letter-spacing: -0.3px;
+}
+
+.rolesGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(240px, 1fr));
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+/* ============================================================
+   ROLE CARDS
+   ============================================================ */
+
+.roleCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  padding: 1.75rem;
+  min-height: 220px;
+  width: 100%;
+  margin: 0;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35);
+  cursor: pointer;
+  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease, background-color 220ms ease;
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+  backdrop-filter: blur(10px);
+  text-decoration: none;
+  color: #fff;
+  font-family: inherit;
+  font-size: inherit;
+  z-index: 1;
+}
+
+.roleCard::before {
+  content: '';
+  position: absolute;
+  inset: -40% -20% auto auto;
+  width: 180px;
+  height: 180px;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.18) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 220ms ease;
+  pointer-events: none;
+}
+
+.roleCard:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(59, 130, 246, 0.75);
+  transform: translateY(-8px) scale(1.03);
+  box-shadow: 0 18px 40px rgba(30, 58, 138, 0.45), 0 0 0 1px rgba(59, 130, 246, 0.22);
+}
+
+.roleCard:hover::before {
+  opacity: 1;
+}
+
+.roleCardHovered {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(59, 130, 246, 0.75);
+  transform: translateY(-8px);
+  box-shadow: 0 18px 40px rgba(30, 58, 138, 0.45);
+}
+
+.roleIcon {
+  width: 58px;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.35rem;
+  background: linear-gradient(135deg, rgba(96, 165, 250, 0.95) 0%, rgba(109, 40, 217, 0.95) 100%);
+  border-radius: 999px;
+  box-shadow: 0 10px 20px rgba(79, 70, 229, 0.32), inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.roleIconSvg {
+  width: 28px;
+  height: 28px;
+  color: #ffffff;
+}
+
+.roleCard:hover .roleIcon {
+  transform: translateY(-1px);
+}
+
+.roleName {
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    sans-serif;
+  font-size: 1.55rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0;
+  letter-spacing: -0.25px;
+}
+
+.roleDescription {
+  font-size: 0.92rem;
+  color: #A1A1AA;
+  margin: 0;
+  line-height: 1.5;
+  font-weight: 500;
+  flex-grow: 1;
+}
+
+.roleArrow {
+  font-size: 1.5rem;
+  color: rgba(124, 58, 237, 0.7);
+  opacity: 0;
+  transform: translateX(-10px);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.roleCard:hover .roleArrow {
+  opacity: 1;
+  transform: translateX(0);
+  color: #7C3AED;
+}
+
+/* ============================================================
+   RESPONSIVE DESIGN
+   ============================================================ */
+
+@media (max-width: 1024px) {
+  .rolesGrid {
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .navbar {
+    padding: 1rem 0;
+  }
+
+  .navContainer {
+    padding: 0 1rem;
+    gap: 1rem;
+  }
+
+  .logoText {
+    font-size: 1.15rem;
+  }
+
+  .heroSection {
+    padding: 40px 1rem;
+    min-height: 55vh;
+  }
+
+  .heroTitle {
+    font-size: clamp(2rem, 7vw, 3rem);
+  }
+
+  .heroDescription {
+    font-size: 1rem;
+  }
+
+  .searchBar {
+    max-width: 100%;
+    padding: 0.875rem 1.25rem;
+  }
+
+  .featuresContainer {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .featureTag {
+    width: 100%;
+  }
+
+  .featureDivider {
+    display: none;
+  }
+
+  .roleSection {
+    padding: 60px 1rem;
+  }
+
+  .roleTitle {
+    font-size: clamp(1.5rem, 4vw, 2rem);
+    margin-bottom: 1.5rem;
+  }
+
+  .rolesGrid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .roleCard {
+    padding: 1.5rem;
+    min-height: 280px;
+  }
+
+  .roleIcon {
+    font-size: 2.5rem;
+  }
+
+  .roleName {
+    font-size: 1.15rem;
+  }
+
+  .roleDescription {
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .main {
+    min-height: auto;
+  }
+
+  .navbar {
+    padding: 0.75rem 0;
+  }
+
+  .navContainer {
+    padding: 0 1rem;
+  }
+
+  .logoIcon {
+    font-size: 1.5rem;
+  }
+
+  .logoText {
+    font-size: 1rem;
+  }
+
+  .heroSection {
+    padding: 30px 1rem;
+    min-height: auto;
+  }
+
+  .heroContent {
+    gap: 1.5rem;
+  }
+
+  .heroTitle {
+    font-size: 1.75rem;
+  }
+
+  .heroDescription {
+    font-size: 0.95rem;
+  }
+
+  .searchBar {
+    padding: 0.75rem 1rem;
+    gap: 0.75rem;
+  }
+
+  .searchIcon {
+    font-size: 1.1rem;
+  }
+
+  .featuresContainer {
+    padding: 1rem;
+    gap: 0.75rem;
+  }
+
+  .featureTag {
+    font-size: 0.85rem;
+    padding: 0.4rem 0.8rem;
+    border-radius: 16px;
+  }
+
+  .roleSection {
+    padding: 40px 1rem;
+  }
+
+  .roleTitle {
+    font-size: 1.35rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .rolesGrid {
+    gap: 1.25rem;
+  }
+
+  .roleCard {
+    padding: 1.25rem;
+    min-height: 260px;
+    gap: 0.75rem;
+  }
+
+  .roleIcon {
+    font-size: 2.25rem;
+  }
+
+  .roleName {
+    font-size: 1rem;
+  }
+
+  .roleDescription {
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .roleCard {
+    max-width: 100%;
+  }
+}
+
+/* ============================================================
+   UTILITY CLASSES & ACCESSIBILITY
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .navbar,
+  .heroContent,
+  .roleCard,
+  .searchBar {
+    animation: none;
+    transition: none;
+  }
+
+  .main::before,
+  .main::after {
+    animation: none;
+  }
+}
+
+/* Ensure proper contrast for accessibility */
+@media (prefers-color-scheme: dark) {
+  .main {
+    color-scheme: dark;
+  }
+}
+
+/* Print styles */
+@media print {
+  .navbar {
+    display: none;
+  }
+
+  .roleSection {
+    page-break-inside: avoid;
+  }
+}

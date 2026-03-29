@@ -21,7 +21,6 @@ import {
   ShieldCheckIcon,
   UserIcon,
   ClockIcon,
-  ComputerDesktopIcon,
   ExclamationTriangleIcon,
   ArrowRightOnRectangleIcon,
 } from '@heroicons/react/24/outline';

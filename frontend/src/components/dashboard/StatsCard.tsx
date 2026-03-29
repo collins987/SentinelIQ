@@ -1,5 +1,5 @@
 import { formatNumber } from '../../utils/helpers';
-import { ArrowUpIcon, ArrowDownIcon } from '@heroicons/react/20/solid';
+import { ArrowUpIcon, ArrowDownIcon } from '@heroicons/react/24/solid';
 import clsx from 'clsx';
 
 interface StatsCardProps {

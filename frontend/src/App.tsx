@@ -18,17 +18,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import ChangePassword from './pages/ChangePassword';
 import Register from './pages/Register';
-
-// Protected Route wrapper - checks authentication
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAppSelector((state) => state.auth);
-  
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-  
-  return <>{children}</>;
-}
+import Unauthorized from './pages/Unauthorized';
 
 // Admin Route wrapper - checks for admin role
 function AdminRoute({ children }: { children: React.ReactNode }) {
@@ -38,17 +28,15 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />;
   }
   
-  // If not admin, redirect to login (non-admins should use their own dashboard apps)
+  // If not admin, redirect to unauthorized page
   if (user?.role !== 'admin') {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/unauthorized" replace />;
   }
   
   return <>{children}</>;
 }
 
 function App() {
-  const { user } = useAppSelector((state) => state.auth);
-  
   // Determine default route based on user role
   const getDefaultRoute = () => {
     return '/overview';
@@ -61,6 +49,7 @@ function App() {
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/unauthorized" element={<Unauthorized />} />
       
       {/* Admin Protected dashboard routes */}
       <Route

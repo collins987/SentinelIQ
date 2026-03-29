@@ -16,8 +16,8 @@ export const store = configureStore({
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
-      serializableCheck: process.env.NODE_ENV === 'production',
-      immutableCheck: process.env.NODE_ENV === 'production',
+      serializableCheck: import.meta.env.MODE === 'production',
+      immutableCheck: import.meta.env.MODE === 'production',
     }).concat(dashboardApi.middleware, userApi.middleware, adminGovernanceApi.middleware),
 });
 

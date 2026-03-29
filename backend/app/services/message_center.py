@@ -282,39 +282,31 @@ Amount: Ksh.{amount:,.2f}
 Risk Score: {risk_score:.0%}
 
 Risk Factors:
-{chr(10).join(f'  • {factor}' for factor in risk_factors)}
-
-Please review this transaction and confirm if it was authorized.
+{chr(10).join(f'  - {factor}' for factor in risk_factors)}
 """,
             sensitive_details={
                 "transaction_id": transaction_id,
                 "amount": amount,
                 "risk_score": risk_score,
                 "risk_factors": risk_factors,
-                "detected_at": datetime.utcnow().isoformat()
             },
-            requires_mfa=risk_score >= 0.8
+            requires_mfa=risk_score >= 0.8,
         )
-        
-        # Store message
+
         self.store.create_message(message)
-        
-        # Deliver to channels
         await self._deliver_to_channels(message, channels)
-        
+
         return message
-    
+
     async def send_security_alert(
         self,
         user_id: str,
         org_id: str,
         alert_type: str,
         details: Dict[str, Any],
-        channels: List[MessageChannel] = None
+        channels: List[MessageChannel] = None,
     ) -> SecureMessage:
-        """
-        Send a security alert (login anomaly, password change, etc.)
-        """
+        """Send a security alert (login anomaly, password change, etc.)."""
         if channels is None:
             channels = [MessageChannel.PORTAL, MessageChannel.EMAIL]
         

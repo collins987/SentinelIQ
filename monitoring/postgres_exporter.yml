@@ -1,0 +1,3 @@
+# postgres_exporter configuration
+# Keep explicit file to avoid startup warnings and allow future custom queries.
+auth_modules: {}
