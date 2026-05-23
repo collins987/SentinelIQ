@@ -13,6 +13,8 @@ export interface AnalystProfile {
 interface AnalystContextType {
   user: AnalystProfile | null;
   token: string | null;
+  isReady: boolean;
+  isProfileLoading: boolean;
   setUser: (user: AnalystProfile | null) => void;
   setToken: (token: string | null) => void;
   logout: () => void;
@@ -23,25 +25,33 @@ const AnalystContext = createContext<AnalystContextType | undefined>(undefined);
 export const AnalystProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<AnalystProfile | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [isReady, setIsReady] = useState(false);
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
 
   useEffect(() => {
     // Rehydrate from sessionStorage
     const stored = sessionStorage.getItem('analyst_token');
     if (stored) setToken(stored);
+    setIsReady(true);
   }, []);
 
   useEffect(() => {
+    if (!isReady) return;
+
     if (token) {
       sessionStorage.setItem('analyst_token', token);
-      if (!user) {
+      if (!user && !isProfileLoading) {
+        setIsProfileLoading(true);
         getProfile(token)
           .then((p) => setUser(p))
-          .catch(() => setUser(null));
+          .catch(() => setUser(null))
+          .finally(() => setIsProfileLoading(false));
       }
     } else {
       sessionStorage.removeItem('analyst_token');
+      setUser(null);
     }
-  }, [token, user]);
+  }, [token, user, isReady, isProfileLoading]);
 
   const logout = () => {
     setUser(null);
@@ -50,7 +60,7 @@ export const AnalystProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AnalystContext.Provider value={{ user, token, setUser, setToken, logout }}>
+    <AnalystContext.Provider value={{ user, token, isReady, isProfileLoading, setUser, setToken, logout }}>
       {children}
     </AnalystContext.Provider>
   );

@@ -59,6 +59,7 @@ class VirtualUser:
         first_name: str = "Virtual",
         last_name: str = "User",
     ):
+        from datetime import datetime
         self.id = id
         self.email = email
         self.role = role
@@ -66,6 +67,21 @@ class VirtualUser:
         self.last_name = last_name
         self.is_active = True
         self.email_verified = True
+        self.email_verified_at = None
+        self.phone = None
+        self.phone_verified = False
+        self.risk_score = 0
+        self.risk_breakdown = {"identity": 0, "behavior": 0, "financial": 0, "compliance": 0}
+        self.mfa_enabled = False
+        self.trust_level = "unknown"
+        self.status = "active"
+        self.created_at = datetime.utcnow()
+        self.updated_at = datetime.utcnow()
+        self.last_login_at = None
+        self.last_login_ip = None
+        self.last_device_info = {}
+        self.is_system_user = False
+        self.visibility = "private"
         self.is_virtual = True
         self.org_id = "00000000-0000-0000-0000-000000000000"
 

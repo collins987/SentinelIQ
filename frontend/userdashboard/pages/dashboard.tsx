@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useUser } from '../src/context/UserContext';
 
@@ -25,10 +25,17 @@ import CoreObjectivesGraphs from '../src/components/CoreObjectivesGraphs';
 import AccountCompletionTracker from '../src/components/AccountCompletionTracker';
 import QuickActions from '../src/components/QuickActions';
 import LoanDueReminder from '../src/components/LoanDueReminder';
+import ProtectedRoute from '../src/components/ProtectedRoute';
 
-export default function DashboardPage() {
-  const { user, token, logout } = useUser();
+const API_ROOT =
+  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/api\/?$/, '') ||
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '') ||
+  'http://localhost:8000';
+
+function DashboardPageContent() {
+  const { user, token, logout, isReady, isProfileLoading } = useUser();
   const router = useRouter();
+  const didFetchRef = useRef(false);
   const [profile, setProfile] = useState<any>(null);
   const [riskScores, setRiskScores] = useState<any[]>([]);
   const [activity, setActivity] = useState<any>(null);
@@ -42,12 +49,20 @@ export default function DashboardPage() {
   const [selectedNav, setSelectedNav] = useState('Dashboard');
 
   useEffect(() => {
+    if (!isReady) return;
+    didFetchRef.current = false;
+  }, [token, user, isReady]);
+
+  useEffect(() => {
+    if (!isReady || isProfileLoading) return;
     if (!token) {
       router.push('/');
       return;
     }
+    if (didFetchRef.current) return;
+    didFetchRef.current = true;
     setLoading(true);
-    axios.get(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api'}/user/dashboard`, {
+    axios.get(`${API_ROOT}/user/dashboard`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then((res) => {
@@ -131,7 +146,7 @@ export default function DashboardPage() {
             {riskBreakdown && (
               <RiskBreakdownCard
                 breakdown={riskBreakdown}
-                overallScore={riskScores.length > 0 ? riskScores[0].score : 0}
+                riskScore={riskScores.length > 0 ? riskScores[0].score : 0}
                 trustLevel={trustLevel}
               />
             )}
@@ -191,7 +206,7 @@ export default function DashboardPage() {
                 {riskBreakdown && (
                   <RiskBreakdownCard
                     breakdown={riskBreakdown}
-                    overallScore={riskScores.length > 0 ? riskScores[0].score : 0}
+                    riskScore={riskScores.length > 0 ? riskScores[0].score : 0}
                     trustLevel={trustLevel}
                   />
                 )}
@@ -259,5 +274,13 @@ export default function DashboardPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <ProtectedRoute allowedRoles={['viewer', 'user']}>
+      <DashboardPageContent />
+    </ProtectedRoute>
   );
 }

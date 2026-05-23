@@ -1,7 +1,11 @@
 import axios from 'axios';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api';
-const API_V1 = process.env.NEXT_PUBLIC_API_BASE_URL ? `${process.env.NEXT_PUBLIC_API_BASE_URL.replace(/\/api$/, '')}/api/v1` : 'http://localhost:3000/api/v1';
+const API_ROOT =
+  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/api\/?$/, '') ||
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '') ||
+  'http://localhost:8000';
+const API_BASE = API_ROOT;
+const API_V1 = `${API_ROOT}/api/v1`;
 
 export interface LoginResponse {
   access_token: string;
@@ -74,6 +78,11 @@ export interface RepaymentInfo {
   loan_id: string;
   amount: number;
   status: string;
+  payment_method?: string;
+  payment_reference?: string;
+  payer_user_id?: string;
+  payer_name?: string;
+  payer_org_id?: string;
   due_date?: string;
   paid_at?: string;
   is_late: boolean;
@@ -184,8 +193,12 @@ export async function applyForLoan(data: { amount: number; term_months: number; 
   return res.data;
 }
 
-export async function repayLoan(loanId: string, amount: number, token: string): Promise<{ repayment: RepaymentInfo; loan: LoanInfo; message: string }> {
-  const res = await axios.post(`${API_V1}/users/me/loans/${loanId}/repay`, { amount }, {
+export async function repayLoan(
+  loanId: string,
+  payload: { amount: number; payment_method: string; payment_reference?: string },
+  token: string
+): Promise<{ repayment: RepaymentInfo; loan: LoanInfo; message: string }> {
+  const res = await axios.post(`${API_V1}/users/me/loans/${loanId}/repay`, payload, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return res.data;
@@ -284,7 +297,48 @@ export async function resendPhoneCode(token: string): Promise<{ phone: string | 
 // ─── Support ────────────────────────────────────────────────
 
 export async function submitSupportTicket(ticket: SupportTicket, token: string): Promise<{ success: boolean }> {
-  const res = await axios.post(`${API_BASE}/support/ticket`, ticket, {
+  const res = await axios.post(`${API_BASE}/users/support/ticket`, ticket, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.data;
+}
+
+// ─── Fintech: Repayments, transactions, spending alerts ─────
+
+export async function getLoanRepayments(loanId: string, token: string) {
+  const res = await axios.get(`${API_V1}/users/me/loans/${loanId}/repayments`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.data;
+}
+
+export async function getLoanSchedule(loanId: string, token: string) {
+  const res = await axios.get(`${API_V1}/users/me/loans/${loanId}/schedule`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.data;
+}
+
+export async function getTransactions(token: string, limit = 50) {
+  const res = await axios.get(`${API_V1}/users/me/transactions`, {
+    headers: { Authorization: `Bearer ${token}` },
+    params: { limit },
+  });
+  return res.data;
+}
+
+export async function getSpendingThresholds(token: string) {
+  const res = await axios.get(`${API_V1}/users/me/transactions/thresholds`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.data;
+}
+
+export async function updateSpendingThresholds(
+  data: { daily_limit?: number; weekly_limit?: number; monthly_limit?: number; notify?: boolean },
+  token: string
+) {
+  const res = await axios.patch(`${API_V1}/users/me/transactions/thresholds`, data, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return res.data;

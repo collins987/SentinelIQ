@@ -35,7 +35,12 @@ from app.schemas.fintech import (
     AlertOut, AlertListResponse,
     IncidentReportRequest, IncidentReportResponse,
     PhoneUpdateRequest, PhoneStatusResponse, PhoneVerifyRequest, PhoneVerifyResponse,
+    RepaymentScheduleResponse, ScheduleItemOut, RepaymentListResponse,
+    TransactionListResponse, TransactionOut,
+    SpendingAlertUpdate, SpendingAlertResponse,
 )
+from app.services.repayment_service import RepaymentService
+from app.services.transaction_monitor import TransactionMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +67,26 @@ def _serialize_decimal(d) -> float:
     return float(d)
 
 
+def _normalize_schedule(schedule_items) -> list:
+    if not schedule_items:
+        return []
+    normalized = []
+    for item in schedule_items:
+        if isinstance(item, dict):
+            cleaned = {}
+            for key, value in item.items():
+                if isinstance(value, Decimal):
+                    cleaned[key] = _serialize_decimal(value)
+                elif isinstance(value, (datetime, date)):
+                    cleaned[key] = _serialize_datetime(value)
+                else:
+                    cleaned[key] = value
+            normalized.append(cleaned)
+        else:
+            normalized.append(item)
+    return normalized
+
+
 def _loan_to_dict(loan: Loan) -> dict:
     return {
         "id": loan.id,
@@ -72,7 +97,7 @@ def _loan_to_dict(loan: Loan) -> dict:
         "term_months": loan.term_months,
         "purpose": loan.purpose,
         "next_due_date": _serialize_datetime(loan.next_due_date),
-        "repayment_schedule": loan.repayment_schedule or [],
+        "repayment_schedule": _normalize_schedule(loan.repayment_schedule),
         "last_repayment_at": _serialize_datetime(loan.last_repayment_at),
         "approved_at": _serialize_datetime(loan.approved_at),
         "created_at": _serialize_datetime(loan.created_at),
@@ -85,9 +110,15 @@ def _repayment_to_dict(rep: LoanRepayment) -> dict:
         "loan_id": rep.loan_id,
         "amount": _serialize_decimal(rep.amount),
         "status": rep.status,
+        "payment_method": rep.payment_method,
+        "payment_reference": rep.payment_reference,
+        "payer_user_id": rep.user_id,
+        "payer_name": rep.payer_name,
+        "payer_org_id": rep.payer_org_id,
         "due_date": _serialize_datetime(rep.due_date),
         "paid_at": _serialize_datetime(rep.paid_at),
         "is_late": rep.is_late,
+        "verification_status": getattr(rep, "verification_status", "verified"),
         "created_at": _serialize_datetime(rep.created_at),
     }
 
@@ -103,6 +134,29 @@ def _audit_log(db: Session, user_id: str, action: str, target: str = None, metad
         timestamp=datetime.utcnow()
     )
     db.add(log)
+
+
+def _format_date_id(date_obj: datetime, sequence: int) -> str:
+    date_code = date_obj.strftime("%y%m%d")
+    return f"{date_code}-{sequence:03d}"
+
+
+def _next_daily_id(db: Session, model, date_obj: datetime) -> str:
+    date_code = date_obj.strftime("%y%m%d")
+    prefix = f"{date_code}-"
+    latest = (
+        db.query(model.id)
+        .filter(model.id.like(f"{prefix}%"))
+        .order_by(model.id.desc())
+        .first()
+    )
+    next_seq = 1
+    if latest and latest[0]:
+        try:
+            next_seq = int(latest[0].split("-")[-1]) + 1
+        except ValueError:
+            next_seq = 1
+    return _format_date_id(date_obj, next_seq)
 
 
 def _compute_trust_level(risk_score: int) -> str:
@@ -398,17 +452,22 @@ async def apply_for_loan(
     # Generate repayment schedule
     monthly_payment = round(body.amount / body.term_months, 2)
     schedule = []
+    schedule_counts: dict[str, int] = {}
     for i in range(body.term_months):
         due = datetime.utcnow() + timedelta(days=30 * (i + 1))
+        date_key = due.strftime("%y%m%d")
+        schedule_counts[date_key] = schedule_counts.get(date_key, 0) + 1
         schedule.append({
             "installment": i + 1,
+            "installment_id": _format_date_id(due, schedule_counts[date_key]),
             "amount": monthly_payment,
             "due_date": due.strftime("%Y-%m-%d"),
             "status": "pending",
         })
 
+    loan_id = _next_daily_id(db, Loan, datetime.utcnow())
     loan = Loan(
-        id=generate_uuid(),
+        id=loan_id,
         user_id=user.id,
         org_id=user.org_id,
         status="active" if auto_approve else "pending",
@@ -424,6 +483,11 @@ async def apply_for_loan(
         updated_at=datetime.utcnow(),
     )
     db.add(loan)
+    db.flush()
+    if auto_approve:
+        from app.services.interest_engine import InterestEngine
+        InterestEngine.apply_policy_to_loan(db, loan, user)
+        RepaymentService.sync_schedule_from_loan(db, loan)
 
     _audit_log(db, user.id, "loan_application", metadata={
         "loan_id": loan.id,
@@ -451,85 +515,128 @@ async def repay_loan(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """
-    Make a repayment on an active loan.
-    Emits risk signals: on-time = -50, late = +60.
-    """
-    loan = db.query(Loan).filter(
-        Loan.id == loan_id,
-        Loan.user_id == current_user.id,
-    ).first()
-
+    """Make a repayment with verification workflow and risk events."""
+    loan = db.query(Loan).filter(Loan.id == loan_id, Loan.user_id == current_user.id).first()
     if not loan:
         raise HTTPException(status_code=404, detail="Loan not found")
-
     if loan.status not in ("active",):
         raise HTTPException(status_code=400, detail=f"Cannot repay loan with status: {loan.status}")
-
     if body.amount > float(loan.outstanding):
         raise HTTPException(status_code=400, detail="Repayment amount exceeds outstanding balance")
 
-    # Check if payment is late
-    is_late = False
-    if loan.next_due_date and datetime.utcnow().date() > loan.next_due_date:
-        is_late = True
+    try:
+        repayment, _meta = RepaymentService.process_repayment(
+            db,
+            loan,
+            current_user,
+            body.amount,
+            body.payment_method.value if hasattr(body.payment_method, "value") else str(body.payment_method),
+            body.payment_reference,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
-    # Create repayment record
-    repayment = LoanRepayment(
-        id=generate_uuid(),
-        loan_id=loan.id,
-        user_id=current_user.id,
-        amount=Decimal(str(body.amount)),
-        status="completed",
-        due_date=loan.next_due_date,
-        paid_at=datetime.utcnow(),
-        is_late=is_late,
-        created_at=datetime.utcnow(),
-    )
-    db.add(repayment)
-
-    # Update loan
-    loan.outstanding = Decimal(str(float(loan.outstanding) - body.amount))
-    loan.last_repayment_at = datetime.utcnow()
-    loan.updated_at = datetime.utcnow()
-
-    # Advance next due date
-    if loan.next_due_date:
-        loan.next_due_date = (datetime.combine(loan.next_due_date, datetime.min.time()) + timedelta(days=30)).date()
-
-    # Close loan if fully paid
-    if float(loan.outstanding) <= 0:
-        loan.status = "closed"
-        loan.outstanding = Decimal("0.00")
-        loan.closed_at = datetime.utcnow()
-
-    # Risk signal for repayment
-    risk_impact = 60 if is_late else -50
-    _audit_log(db, current_user.id, "loan_repayment", target=loan.id, metadata={
-        "amount": body.amount,
-        "is_late": is_late,
-        "remaining": float(loan.outstanding),
-        "risk_impact": risk_impact,
-        "detail": f"{'Late' if is_late else 'On-time'} repayment of Ksh.{body.amount} on loan #{loan.id[:8]}",
-    })
-
-    # Update user financial risk
     user = db.query(User).filter(User.id == current_user.id).first()
     if user:
-        breakdown = user.risk_breakdown or {"identity": 0, "behavior": 0, "financial": 0, "compliance": 0}
-        breakdown["financial"] = max(0, breakdown.get("financial", 0) + risk_impact)
-        user.risk_breakdown = breakdown
-        user.risk_score = sum(breakdown.values())
         user.trust_level = _compute_trust_level(user.risk_score)
-        user.updated_at = datetime.utcnow()
-
     db.commit()
     db.refresh(loan)
+    db.refresh(repayment)
 
+    msg = "Repayment pending verification" if repayment.verification_status == "pending" else (
+        "Late repayment recorded" if repayment.is_late else "Repayment recorded successfully"
+    )
     return RepaymentResponse(
         repayment=RepaymentOut(**_repayment_to_dict(repayment)),
         loan=LoanOut(**_loan_to_dict(loan)),
-        message="Late repayment recorded" if is_late else "Repayment recorded successfully",
+        message=msg,
+    )
+
+
+@router.get("/loans/{loan_id}/repayments", response_model=RepaymentListResponse)
+async def list_loan_repayments(
+    loan_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    loan = db.query(Loan).filter(Loan.id == loan_id, Loan.user_id == current_user.id).first()
+    if not loan:
+        raise HTTPException(status_code=404, detail="Loan not found")
+    reps = RepaymentService.list_repayments(db, loan_id)
+    items = [RepaymentOut(**_repayment_to_dict(r)) for r in reps]
+    return RepaymentListResponse(repayments=items, total=len(items))
+
+
+@router.get("/loans/{loan_id}/schedule", response_model=RepaymentScheduleResponse)
+async def get_loan_schedule(
+    loan_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    loan = db.query(Loan).filter(Loan.id == loan_id, Loan.user_id == current_user.id).first()
+    if not loan:
+        raise HTTPException(status_code=404, detail="Loan not found")
+    schedule = RepaymentService.get_schedule(db, loan)
+    db.commit()
+    return RepaymentScheduleResponse(
+        loan_id=loan_id,
+        schedule=[ScheduleItemOut(**s) for s in schedule],
+    )
+
+
+@router.get("/transactions", response_model=TransactionListResponse)
+async def list_my_transactions(
+    limit: int = 50,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    rows = TransactionMonitor.list_user_transactions(db, current_user.id, limit=limit)
+    items = [
+        TransactionOut(
+            id=t.id,
+            type=t.type,
+            amount=float(t.amount),
+            status=t.status,
+            risk_score=float(t.risk_score or 0),
+            loan_id=t.loan_id,
+            metadata=t.transaction_metadata or {},
+            created_at=_serialize_datetime(t.created_at),
+        )
+        for t in rows
+    ]
+    return TransactionListResponse(transactions=items, total=len(items))
+
+
+@router.get("/transactions/thresholds", response_model=SpendingAlertResponse)
+async def get_spending_thresholds(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    row = TransactionMonitor.get_or_create_spending_alert(db, current_user.id)
+    db.commit()
+    return SpendingAlertResponse(
+        daily_limit=float(row.daily_limit) if row.daily_limit else None,
+        weekly_limit=float(row.weekly_limit) if row.weekly_limit else None,
+        monthly_limit=float(row.monthly_limit) if row.monthly_limit else None,
+        notify=bool(row.notify),
+    )
+
+
+@router.patch("/transactions/thresholds", response_model=SpendingAlertResponse)
+async def update_spending_thresholds(
+    body: SpendingAlertUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    row = TransactionMonitor.update_spending_alert(
+        db, current_user.id, body.model_dump(exclude_unset=True)
+    )
+    db.commit()
+    return SpendingAlertResponse(
+        daily_limit=float(row.daily_limit) if row.daily_limit else None,
+        weekly_limit=float(row.weekly_limit) if row.weekly_limit else None,
+        monthly_limit=float(row.monthly_limit) if row.monthly_limit else None,
+        notify=bool(row.notify),
     )
 
 

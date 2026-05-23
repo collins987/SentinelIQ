@@ -69,6 +69,7 @@ class User(Base):
     trust_level = Column(String, default="unknown")  # trusted, under_review, restricted, unknown
     is_active = Column(Boolean, default=True)
     email_verified = Column(Boolean, default=False)
+    email_verified_at = Column(DateTime, nullable=True)
     
     # MFA
     mfa_enabled = Column(Boolean, default=False)
@@ -142,6 +143,7 @@ class User(Base):
             "phone_verified": self.phone_verified,
             "is_active": self.is_active,
             "email_verified": self.email_verified,
+            "email_verified_at": self.email_verified_at.isoformat() if self.email_verified_at else None,
             "user_metadata": self.user_metadata,
             "last_login_at": self.last_login_at.isoformat() if self.last_login_at else None,
             "last_login_ip": self.last_login_ip,
@@ -271,6 +273,8 @@ class Loan(Base):
     purpose = Column(String, nullable=True)
     next_due_date = Column(Date, nullable=True)
     repayment_schedule = Column(JSON, default=list)  # list of installments
+    interest_policy_id = Column(String, ForeignKey("interest_policies.id"), nullable=True)
+    repayments_frozen = Column(Boolean, default=False)
     last_repayment_at = Column(DateTime, nullable=True)
     approved_at = Column(DateTime, nullable=True)
     closed_at = Column(DateTime, nullable=True)
@@ -292,11 +296,17 @@ class LoanRepayment(Base):
     id = Column(String, primary_key=True, default=generate_uuid)
     loan_id = Column(String, ForeignKey("loans.id"), nullable=False)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    payer_name = Column(String, nullable=True)
+    payer_org_id = Column(String, ForeignKey("organizations.id"), nullable=True)
+    payment_method = Column(String, nullable=True)
+    payment_reference = Column(String, nullable=True)
     amount = Column(Numeric(12, 2), nullable=False)
     status = Column(String, default="completed")  # pending, completed, failed, late
     due_date = Column(Date, nullable=True)
     paid_at = Column(DateTime, nullable=True)
     is_late = Column(Boolean, default=False)
+    verification_status = Column(String, default="verified")  # pending, verified, rejected
+    verified_by = Column(String, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -345,3 +355,7 @@ class SecurityAlert(Base):
 
     # Relationships
     user = relationship("User", backref="security_alerts")
+
+
+# Extended fintech tables (repayment schedules, interest policies, transactions)
+from app.models import fintech_extended  # noqa: E402, F401

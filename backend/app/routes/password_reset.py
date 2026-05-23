@@ -74,6 +74,7 @@ def request_password_reset(
             "admin": ADMIN_FRONTEND_URL,
             "analyst": ANALYST_FRONTEND_URL,
             "viewer": VIEWER_FRONTEND_URL,
+            "user": VIEWER_FRONTEND_URL,
         }
         frontend_url = role_url_map.get(user.role, FRONTEND_BASE_URL)
 

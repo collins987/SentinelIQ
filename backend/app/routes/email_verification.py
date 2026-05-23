@@ -8,14 +8,22 @@ Marks user as email_verified=True.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_db
 from app.models import User, AuditLog
-from app.services.token_service import verify_email_token
+from app.services.token_service import verify_email_token, generate_email_token
+from app.services.email_service import send_email
+from app.services.template_service import render_template
+from app.config import FRONTEND_BASE_URL, ADMIN_FRONTEND_URL, ANALYST_FRONTEND_URL, VIEWER_FRONTEND_URL
 from datetime import datetime
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
 
 
 @router.post("/verify-email")
@@ -57,6 +65,8 @@ def verify_email(
     
     # Mark as verified
     user.email_verified = True
+    user.email_verified_at = datetime.utcnow()
+    user.updated_at = datetime.utcnow()
     db.commit()
     
     # Audit log
@@ -70,3 +80,53 @@ def verify_email(
     db.commit()
     
     return {"msg": "Email verified successfully"}
+
+
+@router.post("/verify-email/resend")
+def resend_verification(payload: ResendVerificationRequest, db: Session = Depends(get_db)):
+    """
+    Resend email verification link.
+    Always returns success to prevent email enumeration.
+    """
+    user = db.query(User).filter(User.email == payload.email).first()
+
+    if user and not user.email_verified:
+        role_url_map = {
+            "admin": ADMIN_FRONTEND_URL,
+            "analyst": ANALYST_FRONTEND_URL,
+            "viewer": VIEWER_FRONTEND_URL,
+            "user": VIEWER_FRONTEND_URL,
+        }
+        frontend_url = role_url_map.get(user.role, FRONTEND_BASE_URL)
+
+        verification_token = generate_email_token(
+            user_id=user.id,
+            purpose="email_verification",
+            db=db,
+        )
+        verify_url = f"{frontend_url}/verify-email?token={verification_token}"
+
+        html = render_template(
+            "email_verification.html",
+            {
+                "user_name": user.first_name,
+                "verification_url": verify_url,
+            },
+        )
+
+        send_email(
+            to=user.email,
+            subject="Verify your SentinelIQ account",
+            html_content=html,
+        )
+
+        audit_log = AuditLog(
+            actor_id=user.id,
+            action="email_verification_resent",
+            target=user.email,
+            event_metadata={"email": user.email},
+        )
+        db.add(audit_log)
+        db.commit()
+
+    return {"msg": "If the email exists, a verification link has been sent"}

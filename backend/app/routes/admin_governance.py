@@ -399,3 +399,154 @@ async def get_org_risk_summary(
 ):
     """Get risk summary per organization."""
     return AdminGovernanceService.get_org_risk_summary(db)
+
+
+# =============================================================================
+# Fintech: Interest policies, repayments, transactions
+# =============================================================================
+
+from app.services.interest_engine import InterestEngine
+from app.services.repayment_service import RepaymentService
+from app.services.transaction_monitor import TransactionMonitor
+from app.schemas.fintech import (
+    InterestPolicyCreate,
+    InterestPolicyOut,
+    RepaymentVerifyRequest,
+    RepaymentFreezeRequest,
+    GlobalThresholdUpdate,
+)
+
+
+@router.get("/interest/policies")
+async def list_interest_policies(
+    active_only: bool = Query(True),
+    current_user=Depends(require_role(["admin"])),
+    db: Session = Depends(get_db),
+):
+    """List interest/penalty policy catalog."""
+    policies = InterestEngine.list_policies(db, active_only=active_only)
+    return {
+        "policies": [
+            InterestPolicyOut(
+                id=p.id,
+                name=p.name,
+                risk_tier=p.risk_tier,
+                base_rate=float(p.base_rate),
+                penalty_rate=float(p.penalty_rate),
+                grace_period_days=p.grace_period_days,
+                active=p.active,
+            )
+            for p in policies
+        ],
+        "total": len(policies),
+    }
+
+
+@router.post("/interest/policies", response_model=InterestPolicyOut)
+async def create_interest_policy(
+    body: InterestPolicyCreate,
+    current_user=Depends(require_role(["admin"])),
+    db: Session = Depends(get_db),
+):
+    policy = InterestEngine.create_policy(db, body.model_dump())
+    db.commit()
+    return InterestPolicyOut(
+        id=policy.id,
+        name=policy.name,
+        risk_tier=policy.risk_tier,
+        base_rate=float(policy.base_rate),
+        penalty_rate=float(policy.penalty_rate),
+        grace_period_days=policy.grace_period_days,
+        active=policy.active,
+    )
+
+
+@router.post("/repayments/freeze")
+async def freeze_loan_repayments(
+    body: RepaymentFreezeRequest,
+    current_user=Depends(require_role(["admin"])),
+    db: Session = Depends(get_db),
+):
+    from app.models import Loan
+
+    loan = db.query(Loan).filter(Loan.id == body.loan_id).first()
+    if not loan:
+        raise HTTPException(status_code=404, detail="Loan not found")
+    loan.repayments_frozen = body.freeze
+    db.commit()
+    return {"loan_id": loan.id, "repayments_frozen": loan.repayments_frozen, "reason": body.reason}
+
+
+@router.post("/repayments/{repayment_id}/verify")
+async def verify_repayment(
+    repayment_id: str,
+    body: RepaymentVerifyRequest,
+    current_user=Depends(require_role(["admin"])),
+    db: Session = Depends(get_db),
+):
+    try:
+        rep = RepaymentService.verify_repayment(db, repayment_id, current_user.id, body.approve)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    db.commit()
+    return {"repayment_id": rep.id, "verification_status": rep.verification_status, "status": rep.status}
+
+
+@router.get("/repayments/pending")
+async def admin_pending_repayments(
+    limit: int = Query(50, ge=1, le=200),
+    current_user=Depends(require_role(["admin"])),
+    db: Session = Depends(get_db),
+):
+    items = RepaymentService.list_pending_verification(db, limit=limit)
+    return {"items": items, "total": len(items)}
+
+
+@router.get("/repayments/overdue")
+async def admin_overdue_repayments(
+    limit: int = Query(50, ge=1, le=200),
+    current_user=Depends(require_role(["admin"])),
+    db: Session = Depends(get_db),
+):
+    items = RepaymentService.list_overdue_queue(db, limit=limit)
+    db.commit()
+    return {"items": items, "total": len(items)}
+
+
+@router.patch("/transactions/thresholds")
+async def update_global_transaction_thresholds(
+    body: GlobalThresholdUpdate,
+    current_user=Depends(require_role(["admin"])),
+    db: Session = Depends(get_db),
+):
+    row = TransactionMonitor.update_global_thresholds(db, body.model_dump(exclude_unset=True))
+    db.commit()
+    return {
+        "daily_velocity_limit": float(row.daily_velocity_limit),
+        "weekly_velocity_limit": float(row.weekly_velocity_limit),
+        "anomaly_score_threshold": float(row.anomaly_score_threshold),
+    }
+
+
+@router.get("/transactions/thresholds")
+async def get_global_transaction_thresholds(
+    current_user=Depends(require_role(["admin"])),
+    db: Session = Depends(get_db),
+):
+    row = TransactionMonitor._get_global_thresholds(db)
+    return {
+        "daily_velocity_limit": float(row.daily_velocity_limit),
+        "weekly_velocity_limit": float(row.weekly_velocity_limit),
+        "anomaly_score_threshold": float(row.anomaly_score_threshold),
+    }
+
+
+@router.get("/transactions/alerts")
+async def get_transaction_alerts(
+    severity: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    current_user=Depends(require_role(["admin"])),
+    db: Session = Depends(get_db),
+):
+    alerts = TransactionMonitor.admin_transaction_alerts(db, severity=severity, limit=limit)
+    return {"alerts": alerts, "total": len(alerts)}

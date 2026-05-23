@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useUser } from '../context/UserContext';
 import { getLoans, applyForLoan, repayLoan, LoanInfo } from '../services/api';
 
@@ -16,8 +16,11 @@ export default function LoansCard() {
   const [applyMsg, setApplyMsg] = useState('');
   const [repayLoanId, setRepayLoanId] = useState<string | null>(null);
   const [repayAmount, setRepayAmount] = useState('');
+  const [repayMethod, setRepayMethod] = useState('mpesa');
+  const [repayReference, setRepayReference] = useState('');
   const [repayStatus, setRepayStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [repayMsg, setRepayMsg] = useState('');
+  const didFetchRef = useRef(false);
 
   const fetchLoans = async () => {
     if (!token) return;
@@ -32,7 +35,17 @@ export default function LoansCard() {
     }
   };
 
-  useEffect(() => { fetchLoans(); }, [token]);
+  useEffect(() => {
+    didFetchRef.current = false;
+    setLoading(true);
+    setError('');
+  }, [token]);
+
+  useEffect(() => {
+    if (!token || didFetchRef.current) return;
+    didFetchRef.current = true;
+    fetchLoans();
+  }, [token]);
 
   const handleApply = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,11 +73,20 @@ export default function LoansCard() {
     if (!token || !repayLoanId) return;
     setRepayStatus('loading');
     try {
-      const res = await repayLoan(repayLoanId, parseFloat(repayAmount), token);
+      const res = await repayLoan(
+        repayLoanId,
+        {
+          amount: parseFloat(repayAmount),
+          payment_method: repayMethod,
+          payment_reference: repayReference || undefined,
+        },
+        token
+      );
       setRepayMsg(res.message);
       setRepayStatus('success');
       setRepayLoanId(null);
       setRepayAmount('');
+      setRepayReference('');
       fetchLoans();
     } catch (err: any) {
       setRepayMsg(err?.response?.data?.detail || 'Repayment failed');
@@ -182,15 +204,44 @@ export default function LoansCard() {
 
               {loan.status === 'active' && (
                 repayLoanId === loan.id ? (
-                  <form onSubmit={handleRepay} style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                    <input type="number" placeholder="Amount" value={repayAmount} onChange={e => setRepayAmount(e.target.value)}
-                      required min={0.01} max={Number(loan.outstanding)} step="0.01"
-                      className="contact-textarea" style={{ resize: 'none', minHeight: 0, padding: '8px 10px', flex: 1 }} />
+                  <form onSubmit={handleRepay} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+                    <input
+                      type="number"
+                      placeholder="Amount"
+                      value={repayAmount}
+                      onChange={e => setRepayAmount(e.target.value)}
+                      required
+                      min={0.01}
+                      max={Number(loan.outstanding)}
+                      step="0.01"
+                      className="contact-textarea"
+                      style={{ resize: 'none', minHeight: 0, padding: '8px 10px', flex: 1, minWidth: 120 }}
+                    />
+                    <select
+                      value={repayMethod}
+                      onChange={e => setRepayMethod(e.target.value)}
+                      className="contact-textarea"
+                      style={{ resize: 'none', minHeight: 0, padding: '8px 10px', minWidth: 140 }}
+                    >
+                      <option value="mpesa">Mpesa</option>
+                      <option value="cash">Cash</option>
+                      <option value="bank_transfer">Bank Transfer</option>
+                      <option value="card">Card</option>
+                      <option value="wallet">Wallet</option>
+                    </select>
+                    <input
+                      type="text"
+                      placeholder="Reference (optional)"
+                      value={repayReference}
+                      onChange={e => setRepayReference(e.target.value)}
+                      className="contact-textarea"
+                      style={{ resize: 'none', minHeight: 0, padding: '8px 10px', flex: 1, minWidth: 160 }}
+                    />
                     <button type="submit" className="btn-primary" style={{ padding: '8px 14px', fontSize: 12 }} disabled={repayStatus === 'loading'}>Pay</button>
                     <button type="button" onClick={() => setRepayLoanId(null)} style={{ padding: '8px 14px', fontSize: 12, background: 'none', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}>Cancel</button>
                   </form>
                 ) : (
-                  <button onClick={() => { setRepayLoanId(loan.id); setRepayAmount(''); setRepayMsg(''); }}
+                  <button onClick={() => { setRepayLoanId(loan.id); setRepayAmount(''); setRepayMethod('mpesa'); setRepayReference(''); setRepayMsg(''); }}
                     style={{ alignSelf: 'flex-start', padding: '6px 14px', fontSize: 12, fontWeight: 600, color: 'var(--color-primary)', background: 'var(--color-primary-bg)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', marginTop: 4 }}>
                     Make Repayment
                   </button>

@@ -4,7 +4,8 @@
 
 SentinelIQ is a fraud and risk intelligence platform for financial workflows.
 It provides real-time risk scoring, security monitoring, and investigation support.
-The project includes a FastAPI backend, PostgreSQL, Redis, and role-based dashboards.
+The platform includes a FastAPI backend, PostgreSQL, Redis, MinIO, Vault, observability tooling, and role-based dashboards.
+
 
 ## 2. System Startup Commands
 
@@ -26,7 +27,15 @@ docker compose down
 - Analyst Dashboard -> http://localhost:4100
 - Viewer Dashboard -> http://localhost:4000
 - Backend API -> http://localhost:8000
+- Backend Root -> http://localhost:8000/
+- Backend Health -> http://localhost:8000/health
 - API Docs (Swagger) -> http://localhost:8000/docs
+- MailHog Web UI -> http://localhost:8025
+- MinIO Console -> http://localhost:9001
+- Prometheus -> http://localhost:9090
+- Grafana -> http://localhost:3001
+- Loki -> http://localhost:3100
+- Vault -> http://localhost:8200
 
 ## 4. Database Access (PostgreSQL)
 
@@ -69,7 +78,15 @@ SELECT * FROM table_name LIMIT 10;
 - 4100 -> Analyst Dashboard
 - 4000 -> Viewer Dashboard
 - 8000 -> Backend API
+- 8025 -> MailHog Web UI
+- 9001 -> MinIO Console
+- 9090 -> Prometheus
+- 3001 -> Grafana
+- 3100 -> Loki
+- 8200 -> Vault
 - 5432 -> PostgreSQL
+- 9121 -> Redis exporter
+- 9187 -> Postgres exporter
 
 ## 7. Useful Development Commands
 
@@ -94,7 +111,7 @@ npm install
 npm run dev
 
 # Start Admin frontend (port 3000)
-cd frontend
+cd frontend/admindashboard
 npm install
 npm run dev
 

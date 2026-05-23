@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { useAnalyst } from '../src/context/AnalystContext';
-import ProtectedRoute from '../src/components/ProtectedRoute';
 import {
   getAlerts, getHighRiskUsers, getRiskInsights, listInvestigations,
   inspectUser, createInvestigation, getInvestigation,
@@ -16,15 +15,16 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
+import ProtectedRoute from '../src/components/ProtectedRoute';
 
-/* ═══════════════════════════════════════════════════════════════
+/* ---------------------------------------------------------------
    NAV TYPES
-   ═══════════════════════════════════════════════════════════════ */
+   --------------------------------------------------------------- */
 type NavSection = 'overview' | 'alerts' | 'investigations' | 'insights' | 'search' | 'inspect' | 'org-inspect';
 
-/* ═══════════════════════════════════════════════════════════════
-   SVG CIRCULAR GAUGE — Professional SOC Threat Level Meter
-   ═══════════════════════════════════════════════════════════════ */
+/* ---------------------------------------------------------------
+   SVG CIRCULAR GAUGE ? Professional SOC Threat Level Meter
+   --------------------------------------------------------------- */
 function ThreatGauge({
   value,
   max = 100,
@@ -137,9 +137,9 @@ function ThreatGauge({
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
+/* ---------------------------------------------------------------
    Animated Counter
-   ═══════════════════════════════════════════════════════════════ */
+   --------------------------------------------------------------- */
 function AnimCounter({ val, dur = 1000 }: { val: number; dur?: number }) {
   const [display, setDisplay] = useState(0);
   useEffect(() => {
@@ -155,9 +155,9 @@ function AnimCounter({ val, dur = 1000 }: { val: number; dur?: number }) {
   return <>{display}</>;
 }
 
-/* ═══════════════════════════════════════════════════════════════
+/* ---------------------------------------------------------------
    Live UTC Clock
-   ═══════════════════════════════════════════════════════════════ */
+   --------------------------------------------------------------- */
 function LiveClock() {
   const [now, setNow] = useState(new Date());
   useEffect(() => {
@@ -186,10 +186,10 @@ function LiveClock() {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
+/* ---------------------------------------------------------------
    MAIN DASHBOARD COMPONENT
-   ═══════════════════════════════════════════════════════════════ */
-export default function AnalystDashboard() {
+   --------------------------------------------------------------- */
+function AnalystDashboardContent() {
   const { user, token, logout } = useAnalyst();
   const router = useRouter();
 
@@ -283,7 +283,7 @@ export default function AnalystDashboard() {
     return () => clearInterval(id);
   }, [nav, loadData]);
 
-  /* ─── Event Handlers ─── */
+  /* --- Event Handlers --- */
   const handleInspect = async (userId: string) => {
     if (!token) return;
     setLoading(true);
@@ -394,16 +394,16 @@ export default function AnalystDashboard() {
   };
 
   const flash = (msg: string, isError = false) => {
-    setActionMsg((isError ? '⚠ ' : '✓ ') + msg);
+    setActionMsg((isError ? '? ' : '? ') + msg);
     setTimeout(() => setActionMsg(''), 4000);
   };
 
-  /* ─── Helpers ─── */
+  /* --- Helpers --- */
   const rl = (s: number) =>
     s >= 80 ? 'critical' : s >= 60 ? 'high' : s >= 30 ? 'medium' : 'low';
 
   const timeAgo = (ts: string) => {
-    if (!ts) return '—';
+    if (!ts) return '?';
     // Treat naive ISO timestamps (no Z or offset) as UTC
     const normalized = (!ts.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(ts) && !/[+-]\d{4}$/.test(ts)) ? ts + 'Z' : ts;
     const d = Date.now() - new Date(normalized).getTime();
@@ -415,7 +415,7 @@ export default function AnalystDashboard() {
     return `${Math.floor(h / 24)}d ago`;
   };
 
-  /* ─── Chart Theming ─── */
+  /* --- Chart Theming --- */
   const TT = {
     contentStyle: {
       background: '#0f172a',
@@ -431,7 +431,7 @@ export default function AnalystDashboard() {
 
   if (!token) return null;
 
-  /* ─── Computed Values ─── */
+  /* --- Computed Values --- */
   const totalAlerts = alerts?.total || 0;
   const critAlerts = alerts?.alerts.filter((a) => a.severity === 'critical').length || 0;
   const totalHR = highRiskUsers?.total || 0;
@@ -457,7 +457,7 @@ export default function AnalystDashboard() {
       ]
     : [];
 
-  /* ─── Nav Config ─── */
+  /* --- Nav Config --- */
   const navItems: { id: NavSection; label: string; icon: string; badge?: number }[] = [
     { id: 'overview', label: 'Overview', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1' },
     { id: 'alerts', label: 'Alerts Feed', icon: 'M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 01-3.46 0', badge: totalAlerts },
@@ -473,12 +473,12 @@ export default function AnalystDashboard() {
     if (n !== 'org-inspect') setOrgDetail(null);
   };
 
-  /* ═══════════════════════════════════════════════════════════════
+  /* ---------------------------------------------------------------
      RENDER
-     ═══════════════════════════════════════════════════════════════ */
+     --------------------------------------------------------------- */
   return (
     <div className="soc-layout">
-      {/* ═══════ SIDEBAR ═══════ */}
+      {/* ------- SIDEBAR ------- */}
       <aside className="soc-sidebar">
         <div className="sidebar-brand">
           <div className="brand-icon-wrap">
@@ -524,6 +524,20 @@ export default function AnalystDashboard() {
               <span>{n.label}</span>
             </div>
           ))}
+
+          <div className="sidebar-section">FINTECH</div>
+          <a className="sidebar-item" href="/repayments" style={{ textDecoration: 'none' }}>
+            <span className="sidebar-item-icon" style={{ fontSize: 14 }}>?</span>
+            <span>Repayment queue</span>
+          </a>
+          <a className="sidebar-item" href="/transactions" style={{ textDecoration: 'none' }}>
+            <span className="sidebar-item-icon" style={{ fontSize: 14 }}>?</span>
+            <span>Transaction anomalies</span>
+          </a>
+          <a className="sidebar-item" href="/interest-simulations" style={{ textDecoration: 'none' }}>
+            <span className="sidebar-item-icon" style={{ fontSize: 14 }}>%</span>
+            <span>Interest simulation</span>
+          </a>
 
           {inspectData && (
             <>
@@ -584,7 +598,7 @@ export default function AnalystDashboard() {
         </div>
       </aside>
 
-      {/* ═══════ MAIN AREA ═══════ */}
+      {/* ------- MAIN AREA ------- */}
       <div className="soc-main">
         {/* Header Bar */}
         <header className="soc-header">
@@ -618,7 +632,7 @@ export default function AnalystDashboard() {
         <AnimatePresence>
           {actionMsg && (
             <motion.div
-              className={`toast-bar ${actionMsg.startsWith('⚠') ? 'error' : 'success'}`}
+              className={`toast-bar ${actionMsg.startsWith('?') ? 'error' : 'success'}`}
               initial={{ y: -40, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: -40, opacity: 0 }}
@@ -633,7 +647,7 @@ export default function AnalystDashboard() {
           {loading ? (
             <div className="loading-container">
               <div className="loading-ring"><div /><div /><div /><div /></div>
-              <div className="loading-text">Aggregating intelligence data…</div>
+              <div className="loading-text">Aggregating intelligence data?</div>
             </div>
           ) : (
             <AnimatePresence mode="wait">
@@ -644,9 +658,9 @@ export default function AnalystDashboard() {
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.22 }}
               >
-                {/* ════════════════════════════════════════════════════════════
-                    OVERVIEW — SOC Command Center
-                    ════════════════════════════════════════════════════════════ */}
+                {/* ------------------------------------------------------------
+                    OVERVIEW ? SOC Command Center
+                    ------------------------------------------------------------ */}
                 {nav === 'overview' && (
                   <>
                     {/* KPI Strip */}
@@ -674,7 +688,7 @@ export default function AnalystDashboard() {
                       ))}
                     </div>
 
-                    {/* Gauge Row — 4 circular gauges */}
+                    {/* Gauge Row ? 4 circular gauges */}
                     <div className="gauge-row">
                       <motion.div className="soc-card gauge-card" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.15 }}>
                         <div className="soc-card-header"><span className="soc-card-title">Overall Risk Level</span></div>
@@ -775,7 +789,7 @@ export default function AnalystDashboard() {
                       <div className="soc-card">
                         <div className="soc-card-header">
                           <span className="soc-card-title">Recent Alerts</span>
-                          <button className="btn btn-ghost btn-sm" onClick={() => switchNav('alerts')}>View All →</button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => switchNav('alerts')}>View All ?</button>
                         </div>
                         <div className="alert-feed">
                           {(alerts?.alerts || []).slice(0, 8).map((a) => (
@@ -796,8 +810,8 @@ export default function AnalystDashboard() {
                           ))}
                           {(!alerts || alerts.alerts.length === 0) && (
                             <div className="empty-state">
-                              <div className="empty-state-icon">✓</div>
-                              <div className="empty-state-text">All clear — no active alerts</div>
+                              <div className="empty-state-icon">?</div>
+                              <div className="empty-state-text">All clear ? no active alerts</div>
                             </div>
                           )}
                         </div>
@@ -825,9 +839,9 @@ export default function AnalystDashboard() {
                   </>
                 )}
 
-                {/* ════════════════════════════════════════════════════════════
+                {/* ------------------------------------------------------------
                     ALERTS FEED
-                    ════════════════════════════════════════════════════════════ */}
+                    ------------------------------------------------------------ */}
                 {nav === 'alerts' && (
                   <>
                     <div className="kpi-row">
@@ -870,7 +884,7 @@ export default function AnalystDashboard() {
                             </div>
                           ))}
                           {(!alerts || alerts.alerts.length === 0) && (
-                            <div className="empty-state"><div className="empty-state-icon">✓</div><div className="empty-state-text">No active alerts</div></div>
+                            <div className="empty-state"><div className="empty-state-icon">?</div><div className="empty-state-text">No active alerts</div></div>
                           )}
                         </div>
                       </div>
@@ -893,7 +907,7 @@ export default function AnalystDashboard() {
                             </div>
                           ))}
                           {(!highRiskUsers || highRiskUsers.users.length === 0) && (
-                            <div className="empty-state"><div className="empty-state-icon">✓</div><div className="empty-state-text">No high-risk users</div></div>
+                            <div className="empty-state"><div className="empty-state-icon">?</div><div className="empty-state-text">No high-risk users</div></div>
                           )}
                         </div>
                       </div>
@@ -917,9 +931,9 @@ export default function AnalystDashboard() {
                   </>
                 )}
 
-                {/* ════════════════════════════════════════════════════════════
-                    INVESTIGATIONS — List
-                    ════════════════════════════════════════════════════════════ */}
+                {/* ------------------------------------------------------------
+                    INVESTIGATIONS ? List
+                    ------------------------------------------------------------ */}
                 {nav === 'investigations' && !caseDetail && (
                   <>
                     <div className="section-toolbar">
@@ -983,7 +997,7 @@ export default function AnalystDashboard() {
                             ) : (
                               <tr>
                                 <td colSpan={8}>
-                                  <div className="empty-state"><div className="empty-state-icon">📋</div><div className="empty-state-text">No investigations found</div></div>
+                                  <div className="empty-state"><div className="empty-state-icon">??</div><div className="empty-state-text">No investigations found</div></div>
                                 </td>
                               </tr>
                             )}
@@ -994,11 +1008,11 @@ export default function AnalystDashboard() {
                   </>
                 )}
 
-                {/* ════════════ Case Detail ════════════ */}
+                {/* ------------ Case Detail ------------ */}
                 {nav === 'investigations' && caseDetail && (
                   <>
                     <button className="btn btn-ghost" onClick={() => setCaseDetail(null)} style={{ marginBottom: 16 }}>
-                      ← Back to Investigations
+                      ? Back to Investigations
                     </button>
 
                     <div className="inspect-header">
@@ -1007,7 +1021,7 @@ export default function AnalystDashboard() {
                       </div>
                       <div>
                         <div className="inspect-name">{caseDetail.subject?.first_name} {caseDetail.subject?.last_name}</div>
-                        <div className="inspect-email">{caseDetail.subject?.email} · Risk: {caseDetail.risk_context?.risk_score || 0}</div>
+                        <div className="inspect-email">{caseDetail.subject?.email} ? Risk: {caseDetail.risk_context?.risk_score || 0}</div>
                       </div>
                       <div className="inspect-badges">
                         <span className={`badge badge-${caseDetail.investigation.severity}`}>{caseDetail.investigation.severity}</span>
@@ -1023,7 +1037,7 @@ export default function AnalystDashboard() {
                             <div className="stat-row"><span className="stat-label">Case ID</span><span className="stat-value">{caseDetail.investigation.id.slice(0, 12)}...</span></div>
                             <div className="stat-row"><span className="stat-label">Opened</span><span className="stat-value">{timeAgo(caseDetail.investigation.created_at)}</span></div>
                             <div className="stat-row"><span className="stat-label">Analyst</span><span className="stat-value">{caseDetail.analyst?.first_name} {caseDetail.analyst?.last_name}</span></div>
-                            <div className="stat-row"><span className="stat-label">Trust Level</span><span className="stat-value">{caseDetail.risk_context?.trust_level || '—'}</span></div>
+                            <div className="stat-row"><span className="stat-label">Trust Level</span><span className="stat-value">{caseDetail.risk_context?.trust_level || '?'}</span></div>
                           </div>
                           <div style={{ marginTop: 16, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                             <strong style={{ color: 'var(--text-primary)' }}>Reason:</strong> {caseDetail.investigation.reason}
@@ -1048,7 +1062,7 @@ export default function AnalystDashboard() {
                               <button className="btn btn-danger btn-sm" onClick={() => { const s = prompt('Enter closing summary:'); if (s) handleUpdateStatus('closed', s); }}>Close Case</button>
                             </>
                           )}
-                          <button className="btn btn-ghost btn-sm" onClick={() => handleInspect(caseDetail.investigation.user_id)}>Inspect User →</button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => handleInspect(caseDetail.investigation.user_id)}>Inspect User ?</button>
                         </div>
                       </div>
                     </div>
@@ -1123,9 +1137,9 @@ export default function AnalystDashboard() {
                   </>
                 )}
 
-                {/* ════════════════════════════════════════════════════════════
+                {/* ------------------------------------------------------------
                     RISK INSIGHTS
-                    ════════════════════════════════════════════════════════════ */}
+                    ------------------------------------------------------------ */}
                 {nav === 'insights' && insights && (
                   <>
                     <div className="kpi-row">
@@ -1227,7 +1241,7 @@ export default function AnalystDashboard() {
                                 <div className={`alert-severity-dot ${p.risk_level}`} />
                                 <div className="alert-content">
                                   <div className="alert-title">{p.event_type}</div>
-                                  <div className="alert-message">Decision: {p.decision} · Level: {p.risk_level}</div>
+                                  <div className="alert-message">Decision: {p.decision} ? Level: {p.risk_level}</div>
                                   <div className="alert-meta">
                                     <span>{timeAgo(p.timestamp)}</span>
                                     {p.rules_triggered?.length > 0 && <span>{p.rules_triggered.length} rules</span>}
@@ -1244,9 +1258,9 @@ export default function AnalystDashboard() {
                   </>
                 )}
 
-                {/* ════════════════════════════════════════════════════════════
+                {/* ------------------------------------------------------------
                     SEARCH
-                    ════════════════════════════════════════════════════════════ */}
+                    ------------------------------------------------------------ */}
                 {nav === 'search' && (
                   <>
                     <div className="soc-card search-box-card">
@@ -1264,7 +1278,7 @@ export default function AnalystDashboard() {
                             autoFocus
                           />
                           {searchQuery && (
-                            <button className="search-clear" onClick={() => { setSearchQuery(''); setSearchResults([]); }}>✕</button>
+                            <button className="search-clear" onClick={() => { setSearchQuery(''); setSearchResults([]); }}>?</button>
                           )}
                         </div>
                       </div>
@@ -1304,16 +1318,16 @@ export default function AnalystDashboard() {
                   </>
                 )}
 
-                {/* ════════════════════════════════════════════════════════════
+                {/* ------------------------------------------------------------
                     USER INSPECTION
-                    ════════════════════════════════════════════════════════════ */}
+                    ------------------------------------------------------------ */}
                 {nav === 'inspect' && inspectData && (
                   <>
                     <div className="inspect-header">
                       <div className="inspect-avatar">{inspectData.user?.first_name?.charAt(0) || '?'}</div>
                       <div>
                         <div className="inspect-name">{inspectData.user?.first_name} {inspectData.user?.last_name}</div>
-                        <div className="inspect-email">{inspectData.user?.email} · {inspectData.user?.role} · org: {inspectData.user?.org_id || '—'}</div>
+                        <div className="inspect-email">{inspectData.user?.email} ? {inspectData.user?.role} ? org: {inspectData.user?.org_id || '?'}</div>
                       </div>
                       <div className="inspect-badges">
                         <span className={`badge badge-${rl(inspectData.risk?.risk_score || 0)}`}>Risk: {inspectData.risk?.risk_score || 0}</span>
@@ -1373,10 +1387,10 @@ export default function AnalystDashboard() {
                               ['Status', inspectData.user?.status],
                               ['MFA', inspectData.user?.mfa_enabled ? 'Enabled' : 'Disabled'],
                               ['Email Verified', inspectData.user?.email_verified ? 'Yes' : 'No'],
-                              ['Phone', (inspectData.user?.phone || '—') + (inspectData.user?.phone_verified ? ' ✓' : '')],
-                              ['Last Login', inspectData.user?.last_login_at ? timeAgo(inspectData.user.last_login_at) : '—'],
-                              ['Last IP', inspectData.user?.last_login_ip || '—'],
-                              ['Created', inspectData.user?.created_at ? timeAgo(inspectData.user.created_at) : '—'],
+                              ['Phone', (inspectData.user?.phone || '?') + (inspectData.user?.phone_verified ? ' ?' : '')],
+                              ['Last Login', inspectData.user?.last_login_at ? timeAgo(inspectData.user.last_login_at) : '?'],
+                              ['Last IP', inspectData.user?.last_login_ip || '?'],
+                              ['Created', inspectData.user?.created_at ? timeAgo(inspectData.user.created_at) : '?'],
                             ] as [string, string][]).map(([l, v]) => (
                               <div key={l} className="stat-row"><span className="stat-label">{l}</span><span className="stat-value">{v}</span></div>
                             ))}
@@ -1414,7 +1428,7 @@ export default function AnalystDashboard() {
                                 <div className={`alert-severity-dot ${l.success ? 'low' : 'critical'}`} />
                                 <div className="alert-content">
                                   <div className="alert-title">{l.success ? 'Login Success' : 'Login Failed'}</div>
-                                  <div className="alert-meta"><span>{l.ip_address || '—'}</span><span>{timeAgo(l.timestamp)}</span></div>
+                                  <div className="alert-meta"><span>{l.ip_address || '?'}</span><span>{timeAgo(l.timestamp)}</span></div>
                                 </div>
                               </div>
                             ))
@@ -1436,7 +1450,7 @@ export default function AnalystDashboard() {
                                 <div className={`alert-severity-dot ${d.is_trusted ? 'low' : 'medium'}`} />
                                 <div className="alert-content">
                                   <div className="alert-title" style={{ fontSize: 12 }}>{d.user_agent?.substring(0, 60) || 'Unknown Device'}</div>
-                                  <div className="alert-meta"><span>{d.timezone || '—'}</span><span>{d.usage_count} uses</span><span>{d.is_trusted ? 'Trusted' : 'Untrusted'}</span></div>
+                                  <div className="alert-meta"><span>{d.timezone || '?'}</span><span>{d.usage_count} uses</span><span>{d.is_trusted ? 'Trusted' : 'Untrusted'}</span></div>
                                 </div>
                               </div>
                             ))
@@ -1453,7 +1467,7 @@ export default function AnalystDashboard() {
                               <div key={l.id} className="alert-item" style={{ cursor: 'default' }}>
                                 <div className={`alert-severity-dot ${l.status === 'defaulted' ? 'critical' : l.status === 'active' ? 'low' : 'medium'}`} />
                                 <div className="alert-content">
-                                  <div className="alert-title">${l.principal?.toLocaleString()} · {l.status}</div>
+                                  <div className="alert-title">${l.principal?.toLocaleString()} ? {l.status}</div>
                                   <div className="alert-meta"><span>Outstanding: ${l.outstanding?.toLocaleString()}</span><span>Rate: {l.interest_rate}%</span></div>
                                 </div>
                               </div>
@@ -1475,7 +1489,7 @@ export default function AnalystDashboard() {
                               <div key={inv.id} className="alert-item" onClick={() => { handleOpenCase(inv.id); switchNav('investigations'); }}>
                                 <div className={`alert-severity-dot ${inv.severity}`} />
                                 <div className="alert-content">
-                                  <div className="alert-title">{inv.id.slice(0, 8)}... · {inv.status}</div>
+                                  <div className="alert-title">{inv.id.slice(0, 8)}... ? {inv.status}</div>
                                   <div className="alert-message">{inv.reason?.substring(0, 80)}</div>
                                   <div className="alert-meta"><span>{inv.severity}</span><span>{timeAgo(inv.created_at)}</span></div>
                                 </div>
@@ -1509,9 +1523,9 @@ export default function AnalystDashboard() {
                   </>
                 )}
 
-                {/* ════════════════════════════════════════════════════════════
+                {/* ------------------------------------------------------------
                     ORGANIZATION INSPECTION
-                    ════════════════════════════════════════════════════════════ */}
+                    ------------------------------------------------------------ */}
                 {nav === 'org-inspect' && orgDetail && (() => {
                   // Client-side filter logic for org users
                   const q = orgUserSearch.toLowerCase();
@@ -1541,7 +1555,7 @@ export default function AnalystDashboard() {
                       </div>
                       <div>
                         <div className="inspect-name">{orgDetail.organization.name}</div>
-                        <div className="inspect-email">Organization · ID: {orgDetail.organization.id}</div>
+                        <div className="inspect-email">Organization ? ID: {orgDetail.organization.id}</div>
                       </div>
                       <div className="inspect-badges">
                         <span className={`badge badge-${rl(orgDetail.stats.avg_risk_score)}`}>
@@ -1698,7 +1712,7 @@ export default function AnalystDashboard() {
                                     {(u.trust_level || 'unknown').replace('_', ' ')}
                                   </td>
                                   <td style={{ padding: '10px 14px', fontFamily: 'var(--font-mono)', fontSize: 12, color: '#64748b' }}>
-                                    {u.last_login_at ? timeAgo(u.last_login_at) : '—'}
+                                    {u.last_login_at ? timeAgo(u.last_login_at) : '?'}
                                   </td>
                                 </tr>
                               ))
@@ -1725,14 +1739,14 @@ export default function AnalystDashboard() {
         </div>
       </div>
 
-      {/* ════════════════════════════════════════════════════════════
+      {/* ------------------------------------------------------------
           MODALS
-          ════════════════════════════════════════════════════════════ */}
+          ------------------------------------------------------------ */}
       <AnimatePresence>
         {showNewCase && (
           <motion.div className="modal-backdrop" onClick={() => setShowNewCase(false)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <motion.div className="modal-content" onClick={(e) => e.stopPropagation()} initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }} transition={{ type: 'spring', damping: 25 }}>
-              <div className="modal-header"><h3>Open New Investigation</h3><button className="modal-close" onClick={() => setShowNewCase(false)}>×</button></div>
+              <div className="modal-header"><h3>Open New Investigation</h3><button className="modal-close" onClick={() => setShowNewCase(false)}>?</button></div>
               <div className="modal-body">
                 <div className="soc-form">
                   <div className="form-group"><label>Subject User ID</label><input value={newCase.user_id} onChange={(e) => setNewCase({ ...newCase, user_id: e.target.value })} placeholder="User ID" /></div>
@@ -1754,7 +1768,7 @@ export default function AnalystDashboard() {
         {showNoteForm && (
           <motion.div className="modal-backdrop" onClick={() => setShowNoteForm(false)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <motion.div className="modal-content" onClick={(e) => e.stopPropagation()} initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }} transition={{ type: 'spring', damping: 25 }}>
-              <div className="modal-header"><h3>Add Investigation Note</h3><button className="modal-close" onClick={() => setShowNoteForm(false)}>×</button></div>
+              <div className="modal-header"><h3>Add Investigation Note</h3><button className="modal-close" onClick={() => setShowNoteForm(false)}>?</button></div>
               <div className="modal-body">
                 <div className="soc-form">
                   <div className="form-group"><label>Note Type</label>
@@ -1775,7 +1789,7 @@ export default function AnalystDashboard() {
         {showRecForm && (
           <motion.div className="modal-backdrop" onClick={() => setShowRecForm(false)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <motion.div className="modal-content" onClick={(e) => e.stopPropagation()} initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }} transition={{ type: 'spring', damping: 25 }}>
-              <div className="modal-header"><h3>Recommend Enforcement Action</h3><button className="modal-close" onClick={() => setShowRecForm(false)}>×</button></div>
+              <div className="modal-header"><h3>Recommend Enforcement Action</h3><button className="modal-close" onClick={() => setShowRecForm(false)}>?</button></div>
               <div className="modal-body">
                 <div className="soc-form">
                   <div className="form-group"><label>Recommended Action</label>
@@ -1795,3 +1809,12 @@ export default function AnalystDashboard() {
     </div>
   );
 }
+
+export default function AnalystDashboard() {
+  return (
+    <ProtectedRoute allowedRoles={['analyst', 'admin']}>
+      <AnalystDashboardContent />
+    </ProtectedRoute>
+  );
+}
+

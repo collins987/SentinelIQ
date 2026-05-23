@@ -4,6 +4,7 @@ Schemas for fintech features: loans, sessions, risk breakdown, MFA, alerts.
 
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
+from enum import Enum
 from datetime import datetime, date
 
 
@@ -78,14 +79,30 @@ class RepaymentOut(BaseModel):
     loan_id: str
     amount: float
     status: str
+    verification_status: Optional[str] = "verified"
+    payment_method: Optional[str] = None
+    payment_reference: Optional[str] = None
+    payer_user_id: Optional[str] = None
+    payer_name: Optional[str] = None
+    payer_org_id: Optional[str] = None
     due_date: Optional[str] = None
     paid_at: Optional[str] = None
     is_late: bool = False
     created_at: Optional[str] = None
 
 
+class PaymentMethod(str, Enum):
+    mpesa = "mpesa"
+    cash = "cash"
+    bank_transfer = "bank_transfer"
+    card = "card"
+    wallet = "wallet"
+
+
 class RepaymentRequest(BaseModel):
     amount: float = Field(..., gt=0, description="Amount to repay")
+    payment_method: PaymentMethod = Field(..., description="Payment method")
+    payment_reference: Optional[str] = Field(None, max_length=120)
 
 
 class RepaymentResponse(BaseModel):
@@ -208,3 +225,107 @@ class UserDashboardResponse(BaseModel):
     session: Dict[str, Any]
     loans_summary: Dict[str, Any]
     alerts_summary: Dict[str, Any]
+
+
+# ─────────────────────────────────────────────────────────────
+# Repayment schedule & verification
+# ─────────────────────────────────────────────────────────────
+
+class ScheduleItemOut(BaseModel):
+    id: str
+    installment_number: int
+    due_date: Optional[str] = None
+    expected_amount: float
+    status: str
+    penalty_applied: float = 0
+
+
+class RepaymentScheduleResponse(BaseModel):
+    loan_id: str
+    schedule: List[ScheduleItemOut]
+
+
+class RepaymentListResponse(BaseModel):
+    repayments: List[RepaymentOut]
+    total: int
+
+
+class RepaymentVerifyRequest(BaseModel):
+    approve: bool = True
+
+
+# ─────────────────────────────────────────────────────────────
+# Transactions & spending alerts
+# ─────────────────────────────────────────────────────────────
+
+class TransactionOut(BaseModel):
+    id: str
+    type: str
+    amount: float
+    status: str
+    risk_score: float = 0
+    loan_id: Optional[str] = None
+    metadata: Dict[str, Any] = {}
+    created_at: Optional[str] = None
+
+
+class TransactionListResponse(BaseModel):
+    transactions: List[TransactionOut]
+    total: int
+
+
+class SpendingAlertUpdate(BaseModel):
+    daily_limit: Optional[float] = None
+    weekly_limit: Optional[float] = None
+    monthly_limit: Optional[float] = None
+    notify: Optional[bool] = None
+
+
+class SpendingAlertResponse(BaseModel):
+    daily_limit: Optional[float] = None
+    weekly_limit: Optional[float] = None
+    monthly_limit: Optional[float] = None
+    notify: bool = True
+
+
+class GlobalThresholdUpdate(BaseModel):
+    daily_velocity_limit: Optional[float] = None
+    weekly_velocity_limit: Optional[float] = None
+    anomaly_score_threshold: Optional[float] = None
+
+
+class InterestPolicyCreate(BaseModel):
+    name: str
+    risk_tier: str
+    base_rate: float
+    penalty_rate: float
+    grace_period_days: int = 0
+    active: bool = True
+
+
+class InterestPolicyOut(BaseModel):
+    id: str
+    name: str
+    risk_tier: str
+    base_rate: float
+    penalty_rate: float
+    grace_period_days: int
+    active: bool
+
+
+class InterestSimulationResponse(BaseModel):
+    loan_id: str
+    risk_tier: str
+    base_rate: float
+    penalty_rate: float
+    outstanding: float
+    projected_monthly_interest: float
+    projected_penalty_if_overdue: float
+    policy_id: Optional[str] = None
+    policy_name: Optional[str] = None
+
+
+class RepaymentFreezeRequest(BaseModel):
+    loan_id: str
+    freeze: bool = True
+    reason: Optional[str] = None

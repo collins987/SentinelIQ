@@ -9,31 +9,36 @@ interface ProtectedRouteProps {
 
 export default function ProtectedRoute({ children, allowedRoles = ['viewer', 'user'] }: ProtectedRouteProps) {
   const router = useRouter();
-  const { token, user } = useUser();
+  const { token, user, isReady, isProfileLoading } = useUser();
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
 
   useEffect(() => {
+    if (!isReady) {
+      setIsLoading(true);
+      return;
+    }
+
     if (!token) {
-      // Not authenticated - redirect to login
       router.push('/');
       setIsLoading(false);
       return;
     }
 
-    if (user && allowedRoles.includes(user.role)) {
-      // Authenticated and authorized
+    if (isProfileLoading || !user) {
+      setIsLoading(true);
+      return;
+    }
+
+    if (allowedRoles.includes(user.role)) {
       setIsAuthorized(true);
       setIsLoading(false);
-    } else if (user) {
-      // Authenticated but not authorized
-      router.push('/unauthorized');
-      setIsLoading(false);
-    } else {
-      // Still loading user info
-      setIsLoading(false);
+      return;
     }
-  }, [token, user, router, allowedRoles]);
+
+    router.push('/unauthorized');
+    setIsLoading(false);
+  }, [token, user, router, allowedRoles, isReady, isProfileLoading]);
 
   if (isLoading) {
     return (

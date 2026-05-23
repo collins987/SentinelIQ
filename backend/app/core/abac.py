@@ -17,7 +17,7 @@ Compliance: GDPR Article 25 (Data Protection by Design)
 """
 
 import logging
-from typing import Dict, Any, List, Optional, Callable, Set
+from typing import Dict, Any, List, Optional, Callable, Set, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import wraps
@@ -28,6 +28,7 @@ from fastapi import HTTPException, status, Request, Depends
 from sqlalchemy.orm import Session
 
 from app.models import User
+from app.config import ABAC_ENABLED
 from app.dependencies import get_current_user, get_db
 from app.core.logging import log_event
 
@@ -58,36 +59,42 @@ class AttributeCondition:
         """Evaluate this condition against a context."""
         # Get attribute value from context using dot notation
         attr_value = self._get_nested_value(context, self.attribute)
+
+        compare_value = self.value
+        if isinstance(compare_value, str):
+            match = re.match(r"^\$\{(.+)\}$", compare_value)
+            if match:
+                compare_value = self._get_nested_value(context, match.group(1))
         
         if attr_value is None:
             return False
         
         if self.operator == AttributeOperator.EQUALS:
-            return attr_value == self.value
+            return attr_value == compare_value
         
         elif self.operator == AttributeOperator.NOT_EQUALS:
-            return attr_value != self.value
+            return attr_value != compare_value
         
         elif self.operator == AttributeOperator.IN:
-            return attr_value in self.value
+            return attr_value in compare_value
         
         elif self.operator == AttributeOperator.NOT_IN:
-            return attr_value not in self.value
+            return attr_value not in compare_value
         
         elif self.operator == AttributeOperator.CONTAINS:
-            return self.value in attr_value
+            return compare_value in attr_value
         
         elif self.operator == AttributeOperator.MATCHES:
-            return bool(re.match(self.value, str(attr_value)))
+            return bool(re.match(str(compare_value), str(attr_value)))
         
         elif self.operator == AttributeOperator.GREATER_THAN:
-            return attr_value > self.value
+            return attr_value > compare_value
         
         elif self.operator == AttributeOperator.LESS_THAN:
-            return attr_value < self.value
+            return attr_value < compare_value
         
         elif self.operator == AttributeOperator.BETWEEN:
-            low, high = self.value
+            low, high = compare_value
             return low <= attr_value <= high
         
         return False
@@ -215,6 +222,57 @@ class ABACPolicyStore:
                     attribute="user.role",
                     operator=AttributeOperator.EQUALS,
                     value="admin"
+                )
+            ]
+        ))
+
+        # Policy: Org-scoped access for user data
+        self.add_policy(ABACPolicy(
+            id="org_scoped_user_data",
+            name="Organization Scoped User Access",
+            description="Users can access user data within their organization",
+            resource_type="user_data",
+            action="read",
+            priority=150,
+            conditions=[
+                AttributeCondition(
+                    attribute="user.org_id",
+                    operator=AttributeOperator.EQUALS,
+                    value="${resource.org_id}"
+                )
+            ]
+        ))
+
+        # Policy: Admins can access org data globally
+        self.add_policy(ABACPolicy(
+            id="admin_org_data",
+            name="Admin Organization Access",
+            description="Admins can access organization data",
+            resource_type="org_data",
+            action="read",
+            priority=200,
+            conditions=[
+                AttributeCondition(
+                    attribute="user.role",
+                    operator=AttributeOperator.EQUALS,
+                    value="admin"
+                )
+            ]
+        ))
+
+        # Policy: Org-scoped access for org data
+        self.add_policy(ABACPolicy(
+            id="org_scoped_org_data",
+            name="Organization Scoped Org Access",
+            description="Users can access their organization data",
+            resource_type="org_data",
+            action="read",
+            priority=150,
+            conditions=[
+                AttributeCondition(
+                    attribute="user.org_id",
+                    operator=AttributeOperator.EQUALS,
+                    value="${resource.org_id}"
                 )
             ]
         ))
@@ -397,6 +455,8 @@ class ABACEnforcer:
         """
         Enforce ABAC policy - raises HTTPException if denied.
         """
+        if not ABAC_ENABLED:
+            return
         allowed, reason = self.check_access(
             user, request, resource_type, action, resource
         )
@@ -430,9 +490,6 @@ def get_abac_enforcer() -> ABACEnforcer:
         _enforcer = ABACEnforcer()
     return _enforcer
 
-
-# Type alias for tuple return
-from typing import Tuple
 
 
 def require_abac(

@@ -26,6 +26,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from app.models import Base
 import app.models.analyst  # Register analyst models for create_all
 import app.models.admin    # Register admin governance models for create_all
+import app.models.fintech_extended  # Repayment schedules, transactions, interest policies
 from app.core.seed import seed_all
 from app.core.logging import logger
 from app.services.graph_service import router as graph_router
@@ -398,6 +399,21 @@ app.include_router(
     dashboard_ws.router,
     prefix="/api/admin/dashboard"
 )
+
+
+# Root welcome endpoint
+@app.get("/", response_class=JSONResponse)
+async def root_welcome(request: Request):
+    """Return a short SentinelIQ description and helpful links."""
+    payload = {
+        "service": "SentinelIQ",
+        "description": "Fintech Risk & Security Intelligence Platform",
+        "links": {
+            "docs": str(request.base_url) + "docs",
+            "health": str(request.base_url) + "health",
+        },
+    }
+    return JSONResponse(status_code=200, content=payload)
 
 # ============================================================================
 # New Feature Routes

@@ -281,8 +281,15 @@ async def register(data: RegisterRequest, request: Request, db: Session = Depend
         purpose="email_verification",
         db=db,
     )
-    from app.config import FRONTEND_BASE_URL
-    verify_url = f"{FRONTEND_BASE_URL}/verify-email?token={verification_token}"
+    from app.config import FRONTEND_BASE_URL, ADMIN_FRONTEND_URL, ANALYST_FRONTEND_URL, VIEWER_FRONTEND_URL
+    role_url_map = {
+        "admin": ADMIN_FRONTEND_URL,
+        "analyst": ANALYST_FRONTEND_URL,
+        "viewer": VIEWER_FRONTEND_URL,
+        "user": VIEWER_FRONTEND_URL,
+    }
+    frontend_url = role_url_map.get(db_user.role, FRONTEND_BASE_URL)
+    verify_url = f"{frontend_url}/verify-email?token={verification_token}"
 
     email_event = {
         "event": "email.send",

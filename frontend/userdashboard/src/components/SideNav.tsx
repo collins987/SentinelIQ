@@ -1,16 +1,21 @@
 import React, { useState } from 'react';
+import { useRouter } from 'next/router';
 
 const navItems = [
-  { label: 'Dashboard', icon: '⬡' },
-  { label: 'Risk', icon: '◈' },
-  { label: 'Loans', icon: '◇' },
-  { label: 'Sessions', icon: '◻' },
-  { label: 'Security', icon: '△' },
-  { label: 'Support', icon: '○' },
+  { label: 'Dashboard', icon: '⬡', href: '/dashboard' },
+  { label: 'Risk', icon: '◈', href: '/dashboard' },
+  { label: 'Loans', icon: '◇', href: '/dashboard' },
+  { label: 'Repayments', icon: '↻', href: '/repayments' },
+  { label: 'Transactions', icon: '⇄', href: '/transactions' },
+  { label: 'Spending alerts', icon: '◎', href: '/spending-alerts' },
+  { label: 'Sessions', icon: '◻', href: '/dashboard' },
+  { label: 'Security', icon: '△', href: '/dashboard' },
+  { label: 'Support', icon: '○', href: '/dashboard' },
 ];
 
 export default function SideNav({ onSelect, selected }: { onSelect: (label: string) => void, selected: string }) {
   const [collapsed, setCollapsed] = useState(false);
+  const router = useRouter();
 
   return (
     <nav className={`sidebar${collapsed ? ' collapsed' : ''}`}>
@@ -39,7 +44,13 @@ export default function SideNav({ onSelect, selected }: { onSelect: (label: stri
           <button
             key={item.label}
             className={`sidebar-item${selected === item.label ? ' active' : ''}`}
-            onClick={() => onSelect(item.label)}
+            onClick={() => {
+              if (item.href && item.href !== '/dashboard') {
+                router.push(item.href);
+              } else {
+                onSelect(item.label);
+              }
+            }}
           >
             <span className="sidebar-item-icon">{item.icon}</span>
             {!collapsed && <span>{item.label}</span>}

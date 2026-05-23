@@ -14,7 +14,7 @@ Endpoint Groups:
   - Search: cross-entity search
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from typing import Optional
 import uuid
@@ -23,6 +23,7 @@ import logging
 from app.dependencies import get_db, get_current_user, require_role
 from app.models import User, AuditLog
 from app.services.analyst_service import AnalystService
+from app.core.abac import get_abac_enforcer
 from app.schemas.analyst import (
     InvestigationCreate,
     InvestigationUpdate,
@@ -32,6 +33,19 @@ from app.schemas.analyst import (
 from datetime import datetime
 
 logger = logging.getLogger("sentineliq.analyst")
+
+
+def _enforce_org_access(current_user: User, request: Request, org_id: Optional[str], resource_type: str):
+    if not org_id:
+        return
+    enforcer = get_abac_enforcer()
+    enforcer.enforce(
+        current_user,
+        request,
+        resource_type,
+        "read",
+        {"org_id": org_id},
+    )
 
 router = APIRouter(
     prefix="/api/v1/analyst",
@@ -65,6 +79,7 @@ def get_alerts(
 
 @router.get("/users")
 def get_high_risk_users(
+    request: Request,
     risk: int = Query(50, ge=0, le=100, description="Minimum risk score threshold"),
     org_id: Optional[str] = None,
     limit: int = Query(50, ge=1, le=200),
@@ -76,6 +91,11 @@ def get_high_risk_users(
     List users with elevated risk scores.
     Filter by risk threshold, organization.
     """
+    if org_id:
+        _enforce_org_access(current_user, request, org_id, "org_data")
+    elif current_user.role != "admin":
+        org_id = current_user.org_id
+
     return AnalystService.get_high_risk_users(
         db, threshold=risk, org_id=org_id, limit=limit, offset=offset
     )
@@ -84,6 +104,7 @@ def get_high_risk_users(
 @router.get("/users/{user_id}")
 def inspect_user(
     user_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -91,6 +112,12 @@ def inspect_user(
     Full user inspection: risk breakdown, activity timeline,
     login history, device history, loans, sessions, prior investigations.
     """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    _enforce_org_access(current_user, request, user.org_id, "user_data")
+
     result = AnalystService.inspect_user(db, user_id)
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
@@ -113,12 +140,19 @@ def inspect_user(
 @router.get("/users/{user_id}/timeline")
 def get_user_timeline(
     user_id: str,
+    request: Request,
     days: int = Query(30, ge=1, le=365),
     limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """User activity timeline (audit log events)."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    _enforce_org_access(current_user, request, user.org_id, "user_data")
+
     result = AnalystService.get_user_timeline(db, user_id, days=days, limit=limit)
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
@@ -128,6 +162,7 @@ def get_user_timeline(
 @router.get("/users/{user_id}/devices")
 def get_user_devices(
     user_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -135,12 +170,14 @@ def get_user_devices(
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    _enforce_org_access(current_user, request, user.org_id, "user_data")
     return {"devices": AnalystService.get_user_devices(db, user_id), "user_id": user_id}
 
 
 @router.get("/users/{user_id}/loans")
 def get_user_loans(
     user_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -148,6 +185,7 @@ def get_user_loans(
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    _enforce_org_access(current_user, request, user.org_id, "user_data")
     return AnalystService.get_user_loans(db, user_id)
 
 
@@ -341,10 +379,12 @@ def add_recommendation(
 @router.get("/organizations/{org_id}")
 def get_organization_detail(
     org_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Get detailed information about an organization including its users."""
+    _enforce_org_access(current_user, request, org_id, "org_data")
     result = AnalystService.get_organization_detail(db, org_id)
     if not result:
         raise HTTPException(status_code=404, detail="Organization not found")
@@ -365,3 +405,52 @@ def search(
     """Search across users, investigations, and organizations."""
     results = AnalystService.search(db, query=q, limit=limit)
     return {"results": results, "total": len(results), "query": q}
+
+
+# ═══════════════════════════════════════════════════════════════
+# Fintech: Repayments, Transactions, Interest
+# ═══════════════════════════════════════════════════════════════
+
+from app.services.repayment_service import RepaymentService
+from app.services.transaction_monitor import TransactionMonitor
+from app.services.interest_engine import InterestEngine
+from app.schemas.fintech import InterestSimulationResponse
+
+
+@router.get("/repayments/overdue")
+def list_overdue_repayments(
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Overdue repayment review queue."""
+    queue = RepaymentService.list_overdue_queue(db, limit=limit)
+    db.commit()
+    return {"items": queue, "total": len(queue)}
+
+
+@router.get("/transactions/anomalies")
+def list_transaction_anomalies(
+    min_score: float = Query(70, ge=0, le=100),
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Transaction anomalies for analyst review."""
+    items = TransactionMonitor.list_anomalies(db, min_score=min_score, limit=limit)
+    return {"anomalies": items, "total": len(items)}
+
+
+@router.get("/loans/{loan_id}/interest-simulations", response_model=InterestSimulationResponse)
+def interest_simulation(
+    loan_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Risk-based interest and penalty simulation for a loan."""
+    try:
+        data = InterestEngine.simulate(db, loan_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    db.commit()
+    return InterestSimulationResponse(**data)

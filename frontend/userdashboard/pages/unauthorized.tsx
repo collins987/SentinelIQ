@@ -1,5 +1,5 @@
 import { useRouter } from 'next/router';
-import styles from '../styles/Unauthorized.module.css';
+import styles from '../src/styles/Unauthorized.module.css';
 
 export default function Unauthorized() {
   const router = useRouter();

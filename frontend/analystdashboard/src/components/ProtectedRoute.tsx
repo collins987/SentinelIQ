@@ -9,11 +9,15 @@ interface ProtectedRouteProps {
 
 export default function ProtectedRoute({ children, allowedRoles = ['analyst'] }: ProtectedRouteProps) {
   const router = useRouter();
-  const { token, user } = useAnalyst();
+  const { token, user, isReady, isProfileLoading } = useAnalyst();
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
 
   useEffect(() => {
+    if (!isReady || isProfileLoading) {
+      return;
+    }
+
     if (!token) {
       // Not authenticated - redirect to login
       router.push('/');
@@ -33,9 +37,9 @@ export default function ProtectedRoute({ children, allowedRoles = ['analyst'] }:
       // Still loading user info
       setIsLoading(false);
     }
-  }, [token, user, router, allowedRoles]);
+  }, [token, user, router, allowedRoles, isReady, isProfileLoading]);
 
-  if (isLoading) {
+  if (!isReady || isProfileLoading || isLoading) {
     return (
       <div style={{
         display: 'flex',

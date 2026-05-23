@@ -342,6 +342,29 @@ export async function search(
 }
 
 // ═══════════════════════════════════════════════════════════════
+export async function getOverdueRepayments(token: string, limit = 50) {
+  const res = await axios.get(`${API_BASE}/repayments/overdue`, {
+    headers: headers(token),
+    params: { limit },
+  });
+  return res.data;
+}
+
+export async function getTransactionAnomalies(token: string, min_score = 70, limit = 50) {
+  const res = await axios.get(`${API_BASE}/transactions/anomalies`, {
+    headers: headers(token),
+    params: { min_score, limit },
+  });
+  return res.data;
+}
+
+export async function getInterestSimulation(token: string, loanId: string) {
+  const res = await axios.get(`${API_BASE}/loans/${loanId}/interest-simulations`, {
+    headers: headers(token),
+  });
+  return res.data;
+}
+
 // Password Management
 // ═══════════════════════════════════════════════════════════════
 

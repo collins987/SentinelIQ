@@ -172,6 +172,39 @@ def seed_default_admin(db: Session) -> User:
     return admin_user
 
 
+def seed_interest_policies(db: Session) -> int:
+    """Seed default interest policies per risk tier."""
+    from decimal import Decimal
+    from app.models.fintech_extended import InterestPolicy
+
+    defaults = [
+        ("Low Risk Standard", "low", 8.0, 1.5, 5),
+        ("Medium Risk Standard", "medium", 12.0, 2.5, 3),
+        ("High Risk Standard", "high", 18.0, 4.0, 2),
+        ("Critical Risk Standard", "critical", 24.0, 6.0, 0),
+    ]
+    created = 0
+    for name, tier, base, penalty, grace in defaults:
+        exists = db.query(InterestPolicy).filter(InterestPolicy.risk_tier == tier).first()
+        if exists:
+            continue
+        db.add(
+            InterestPolicy(
+                name=name,
+                risk_tier=tier,
+                base_rate=Decimal(str(base)),
+                penalty_rate=Decimal(str(penalty)),
+                grace_period_days=grace,
+                active=True,
+            )
+        )
+        created += 1
+    if created:
+        db.commit()
+        logger.info("Seeded %s interest policies", created)
+    return created
+
+
 def seed_all(db: Session) -> dict:
     """
     Run all seed operations.
@@ -183,11 +216,12 @@ def seed_all(db: Session) -> dict:
     org = seed_default_org(db)
     system_user = seed_system_user(db)
     admin_user = seed_default_admin(db)
-    
+    seed_interest_policies(db)
+
     logger.info("Database seeding complete")
-    
+
     return {
         "organization": org,
         "system_user": system_user,
-        "admin_user": admin_user
+        "admin_user": admin_user,
     }
