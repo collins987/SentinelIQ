@@ -51,21 +51,17 @@ export default function SecurityAlertsCard() {
 
   const unreadCount = alerts.filter(a => !a.is_read).length;
 
-  if (loading) return <div className="card"><h2>Security Alerts</h2><div className="loading-text">Loading alerts...</div></div>;
-  if (error) return <div className="card"><h2>Security Alerts</h2><div className="error-container">{error}</div></div>;
+  if (loading) return <div className="card"><div className="card-header-row"><div className="card-header-copy"><h2>Security Alerts</h2><p className="card-subtitle">Your latest account warnings</p></div></div><div className="loading-text">Loading alerts...</div></div>;
+  if (error) return <div className="card"><div className="card-header-row"><div className="card-header-copy"><h2>Security Alerts</h2><p className="card-subtitle">Your latest account warnings</p></div></div><div className="error-container">{error}</div></div>;
 
   return (
     <div className="card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2 style={{ marginBottom: 0 }}>Security Alerts</h2>
-        {unreadCount > 0 && (
-          <span style={{
-            background: 'var(--color-danger)', color: 'var(--color-text-inverse)', padding: '3px 10px',
-            borderRadius: 10, fontSize: 11, fontWeight: 700,
-          }}>
-            {unreadCount} unread
-          </span>
-        )}
+      <div className="card-header-row">
+        <div className="card-header-copy">
+          <h2>Security Alerts</h2>
+          <p className="card-subtitle">Your latest account warnings</p>
+        </div>
+        {unreadCount > 0 && <span className="card-badge" style={{ color: 'var(--color-danger)' }}>{unreadCount} unread</span>}
       </div>
 
       {alerts.length === 0 ? (

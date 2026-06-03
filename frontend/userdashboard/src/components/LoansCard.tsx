@@ -114,13 +114,16 @@ export default function LoansCard() {
     );
   };
 
-  if (loading) return <div className="card"><h2>Loans</h2><div className="loading-text">Loading loans...</div></div>;
-  if (error) return <div className="card"><h2>Loans</h2><div className="error-container">{error}</div></div>;
+  if (loading) return <div className="card"><div className="card-header-row"><div className="card-header-copy"><h2>Loans</h2><p className="card-subtitle">Borrowing, repayment, and outstanding balance</p></div></div><div className="loading-text">Loading loans...</div></div>;
+  if (error) return <div className="card"><div className="card-header-row"><div className="card-header-copy"><h2>Loans</h2><p className="card-subtitle">Borrowing, repayment, and outstanding balance</p></div></div><div className="error-container">{error}</div></div>;
 
   return (
     <div className="card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2 style={{ marginBottom: 0 }}>Loans</h2>
+      <div className="card-header-row">
+        <div className="card-header-copy">
+          <h2>Loans</h2>
+          <p className="card-subtitle">Borrowing, repayment, and outstanding balance</p>
+        </div>
         <button className="btn-primary" style={{ padding: '8px 16px', fontSize: 13 }} onClick={() => setShowApply(!showApply)}>
           {showApply ? 'Cancel' : '+ Apply for Loan'}
         </button>
@@ -148,7 +151,7 @@ export default function LoansCard() {
 
       {/* Apply form */}
       {showApply && (
-        <form onSubmit={handleApply} style={{ background: 'var(--color-bg)', borderRadius: 'var(--radius-md)', padding: 16, marginBottom: 16, border: '1px solid var(--color-border)' }}>
+        <form onSubmit={handleApply} style={{ background: 'rgba(255,255,255,0.7)', borderRadius: 16, padding: 16, marginBottom: 16, border: '1px solid var(--color-border-subtle)' }}>
           <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Apply for a New Loan</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
             <input type="number" placeholder="Amount (Ksh.)" value={applyAmount} onChange={e => setApplyAmount(e.target.value)} required min={1} step="0.01" className="contact-textarea" style={{ resize: 'none', minHeight: 0, padding: '10px 12px' }} />
@@ -238,11 +241,12 @@ export default function LoansCard() {
                       style={{ resize: 'none', minHeight: 0, padding: '8px 10px', flex: 1, minWidth: 160 }}
                     />
                     <button type="submit" className="btn-primary" style={{ padding: '8px 14px', fontSize: 12 }} disabled={repayStatus === 'loading'}>Pay</button>
-                    <button type="button" onClick={() => setRepayLoanId(null)} style={{ padding: '8px 14px', fontSize: 12, background: 'none', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}>Cancel</button>
+                    <button type="button" onClick={() => setRepayLoanId(null)} className="btn-secondary" style={{ padding: '8px 14px', fontSize: 12 }}>Cancel</button>
                   </form>
                 ) : (
                   <button onClick={() => { setRepayLoanId(loan.id); setRepayAmount(''); setRepayMethod('mpesa'); setRepayReference(''); setRepayMsg(''); }}
-                    style={{ alignSelf: 'flex-start', padding: '6px 14px', fontSize: 12, fontWeight: 600, color: 'var(--color-primary)', background: 'var(--color-primary-bg)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', marginTop: 4 }}>
+                    className="btn-secondary"
+                    style={{ alignSelf: 'flex-start', padding: '6px 14px', fontSize: 12, color: 'var(--color-primary)', background: 'var(--color-primary-bg)', marginTop: 4 }}>
                     Make Repayment
                   </button>
                 )

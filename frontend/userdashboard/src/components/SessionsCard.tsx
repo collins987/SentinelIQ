@@ -45,16 +45,17 @@ export default function SessionsCard() {
     return '💻';
   };
 
-  if (loading) return <div className="card"><h2>Active Sessions</h2><div className="loading-text">Loading sessions...</div></div>;
-  if (error) return <div className="card"><h2>Active Sessions</h2><div className="error-container">{error}</div></div>;
+  if (loading) return <div className="card"><div className="card-header-row"><div className="card-header-copy"><h2>Active Sessions</h2><p className="card-subtitle">Where your account is signed in</p></div></div><div className="loading-text">Loading sessions...</div></div>;
+  if (error) return <div className="card"><div className="card-header-row"><div className="card-header-copy"><h2>Active Sessions</h2><p className="card-subtitle">Where your account is signed in</p></div></div><div className="error-container">{error}</div></div>;
 
   return (
     <div className="card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2 style={{ marginBottom: 0 }}>Active Sessions</h2>
-        <span style={{ fontSize: 12, color: 'var(--color-text-muted)', background: 'var(--color-bg)', padding: '4px 10px', borderRadius: 'var(--radius-sm)' }}>
-          {sessions.filter(s => !s.revoked).length} active
-        </span>
+      <div className="card-header-row">
+        <div className="card-header-copy">
+          <h2>Active Sessions</h2>
+          <p className="card-subtitle">Where your account is signed in</p>
+        </div>
+        <span className="card-badge">{sessions.filter(s => !s.revoked).length} active</span>
       </div>
 
       {msg && <div className="status-success" style={{ marginBottom: 12 }}>{msg}</div>}
@@ -72,24 +73,8 @@ export default function SessionsCard() {
                     <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>
                       {typeof session.device_info === 'string' ? session.device_info : (session.device_info?.name || session.device_info?.type || 'Unknown Device')}
                     </span>
-                    {session.is_current && (
-                      <span style={{
-                        background: 'var(--color-success-bg)', color: 'var(--color-success)',
-                        padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700,
-                        textTransform: 'uppercase', letterSpacing: 0.5,
-                      }}>
-                        Current
-                      </span>
-                    )}
-                    {session.revoked && (
-                      <span style={{
-                        background: 'var(--color-danger-bg)', color: 'var(--color-danger)',
-                        padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700,
-                        textTransform: 'uppercase',
-                      }}>
-                        Revoked
-                      </span>
-                    )}
+                    {session.is_current && <span className="card-badge" style={{ color: 'var(--color-success)' }}>Current</span>}
+                    {session.revoked && <span className="card-badge" style={{ color: 'var(--color-danger)' }}>Revoked</span>}
                   </div>
                   <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--color-text-muted)' }}>
                     <span>📍 {typeof session.location === 'string' ? session.location : (session.location?.city || session.location?.country || 'Unknown')}</span>
@@ -105,12 +90,8 @@ export default function SessionsCard() {
                 <button
                   onClick={() => handleRevoke(session.id)}
                   disabled={revokingId === session.id}
-                  style={{
-                    padding: '6px 14px', fontSize: 12, fontWeight: 600,
-                    color: 'var(--color-danger)', background: 'var(--color-danger-bg)',
-                    border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
-                    cursor: 'pointer', whiteSpace: 'nowrap',
-                  }}
+                  className="btn-danger-soft"
+                  style={{ padding: '6px 14px', fontSize: 12, whiteSpace: 'nowrap' }}
                 >
                   {revokingId === session.id ? 'Revoking...' : 'Revoke'}
                 </button>

@@ -74,19 +74,17 @@ export default function MFASetupCard() {
     }
   };
 
-  if (loading) return <div className="card"><h2>Multi-Factor Authentication</h2><div className="loading-text">Loading...</div></div>;
-  if (error) return <div className="card"><h2>Multi-Factor Authentication</h2><div className="error-container">{error}</div></div>;
+  if (loading) return <div className="card"><div className="card-header-row"><div className="card-header-copy"><h2>Multi-Factor Authentication</h2><p className="card-subtitle">Strengthen sign-in protection</p></div></div><div className="loading-text">Loading...</div></div>;
+  if (error) return <div className="card"><div className="card-header-row"><div className="card-header-copy"><h2>Multi-Factor Authentication</h2><p className="card-subtitle">Strengthen sign-in protection</p></div></div><div className="error-container">{error}</div></div>;
 
   return (
     <div className="card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2 style={{ marginBottom: 0 }}>Multi-Factor Authentication</h2>
-        <span style={{
-          padding: '4px 12px', borderRadius: 'var(--radius-sm)', fontSize: 11, fontWeight: 700,
-          textTransform: 'uppercase', letterSpacing: 0.5,
-          background: mfaEnabled ? 'var(--color-success-bg)' : 'var(--color-danger-bg)',
-          color: mfaEnabled ? 'var(--color-success)' : 'var(--color-danger)',
-        }}>
+      <div className="card-header-row">
+        <div className="card-header-copy">
+          <h2>Multi-Factor Authentication</h2>
+          <p className="card-subtitle">Strengthen sign-in protection</p>
+        </div>
+        <span className="card-badge" style={{ color: mfaEnabled ? 'var(--color-success)' : 'var(--color-danger)' }}>
           {mfaEnabled ? '✓ Enabled' : '✗ Disabled'}
         </span>
       </div>
@@ -159,7 +157,8 @@ export default function MFASetupCard() {
             </button>
           </form>
           <button onClick={() => { setSetupData(null); setSetupMsg(''); }}
-            style={{ marginTop: 10, width: '100%', padding: '8px', background: 'none', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: 13 }}>
+            className="btn-secondary"
+            style={{ marginTop: 10, width: '100%', padding: '8px', fontSize: 13 }}>
             Cancel Setup
           </button>
         </div>
@@ -176,11 +175,8 @@ export default function MFASetupCard() {
             Your account is protected with Time-based One-Time Password (TOTP).
           </div>
           <button onClick={() => { setShowDisable(true); setDisableMsg(''); }}
-            style={{
-              padding: '8px 20px', fontSize: 13, fontWeight: 600, color: 'var(--color-danger)',
-              background: 'var(--color-danger-bg)', border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-            }}>
+            className="btn-danger-soft"
+            style={{ padding: '8px 20px', fontSize: 13 }}>
             Disable MFA
           </button>
         </div>
@@ -205,14 +201,12 @@ export default function MFASetupCard() {
               className="contact-textarea"
               style={{ resize: 'none', minHeight: 0, padding: '10px 12px', flex: 1, fontSize: 16, textAlign: 'center', letterSpacing: 4 }}
             />
-            <button type="submit" style={{
-              padding: '10px 16px', background: 'var(--color-danger)', color: 'var(--color-text-inverse)',
-              border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: 600, fontSize: 13,
-            }}>
+            <button type="submit" className="btn-danger-soft" style={{ padding: '10px 16px', fontSize: 13 }}>
               Confirm
             </button>
             <button type="button" onClick={() => setShowDisable(false)}
-              style={{ padding: '10px 16px', background: 'none', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: 13 }}>
+              className="btn-secondary"
+              style={{ padding: '10px 16px', fontSize: 13 }}>
               Cancel
             </button>
           </div>

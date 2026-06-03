@@ -91,19 +91,17 @@ export default function PhoneVerificationCard() {
     }
   };
 
-  if (loading) return <div className="card"><h2>Phone Verification</h2><div className="loading-text">Loading...</div></div>;
-  if (error) return <div className="card"><h2>Phone Verification</h2><div className="error-container">{error}</div></div>;
+  if (loading) return <div className="card"><div className="card-header-row"><div className="card-header-copy"><h2>Phone Verification</h2><p className="card-subtitle">Verify a number for account recovery</p></div></div><div className="loading-text">Loading...</div></div>;
+  if (error) return <div className="card"><div className="card-header-row"><div className="card-header-copy"><h2>Phone Verification</h2><p className="card-subtitle">Verify a number for account recovery</p></div></div><div className="error-container">{error}</div></div>;
 
   return (
     <div className="card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2 style={{ marginBottom: 0 }}>Phone Verification</h2>
-        <span style={{
-          padding: '4px 12px', borderRadius: 'var(--radius-sm)', fontSize: 11, fontWeight: 700,
-          textTransform: 'uppercase', letterSpacing: 0.5,
-          background: phoneVerified ? 'var(--color-success-bg)' : phone ? 'var(--color-warning-bg)' : 'var(--color-danger-bg)',
-          color: phoneVerified ? 'var(--color-success)' : phone ? 'var(--color-warning)' : 'var(--color-danger)',
-        }}>
+      <div className="card-header-row">
+        <div className="card-header-copy">
+          <h2>Phone Verification</h2>
+          <p className="card-subtitle">Verify a number for account recovery</p>
+        </div>
+        <span className="card-badge" style={{ color: phoneVerified ? 'var(--color-success)' : phone ? 'var(--color-warning)' : 'var(--color-danger)' }}>
           {phoneVerified ? '✓ Verified' : phone ? '⏳ Unverified' : '✗ Not Set'}
         </span>
       </div>
@@ -149,11 +147,8 @@ export default function PhoneVerificationCard() {
           </div>
           <button
             onClick={() => { setShowAddPhone(true); setAddMsg(''); setPhoneInput(''); }}
-            style={{
-              padding: '8px 20px', fontSize: 13, fontWeight: 600, color: 'var(--color-text-secondary)',
-              background: 'none', border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-            }}>
+            className="btn-secondary"
+            style={{ padding: '8px 20px', fontSize: 13 }}>
             Change Phone Number
           </button>
         </div>
@@ -183,11 +178,8 @@ export default function PhoneVerificationCard() {
             </button>
             <button
               onClick={() => { setShowAddPhone(true); setAddMsg(''); setPhoneInput(''); }}
-              style={{
-                padding: '8px 20px', fontSize: 13, fontWeight: 600, color: 'var(--color-text-secondary)',
-                background: 'none', border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-              }}>
+              className="btn-secondary"
+              style={{ padding: '8px 20px', fontSize: 13 }}>
               Change Number
             </button>
           </div>
@@ -224,11 +216,8 @@ export default function PhoneVerificationCard() {
             </button>
           </div>
           <button type="button" onClick={() => { setShowAddPhone(false); setAddMsg(''); }}
-            style={{
-              marginTop: 10, width: '100%', padding: '8px', background: 'none',
-              border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
-              cursor: 'pointer', fontSize: 13,
-            }}>
+            className="btn-secondary"
+            style={{ marginTop: 10, width: '100%', padding: '8px', fontSize: 13 }}>
             Cancel
           </button>
         </form>
@@ -265,19 +254,13 @@ export default function PhoneVerificationCard() {
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
             <button onClick={handleResend}
               disabled={resendStatus === 'loading'}
-              style={{
-                flex: 1, padding: '8px', background: 'none',
-                border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
-                cursor: 'pointer', fontSize: 13, color: 'var(--color-primary)',
-              }}>
+              className="btn-secondary"
+              style={{ flex: 1, padding: '8px', fontSize: 13, color: 'var(--color-primary)' }}>
               {resendStatus === 'loading' ? 'Resending...' : 'Resend Code'}
             </button>
             <button onClick={() => { setShowVerify(false); setVerifyMsg(''); }}
-              style={{
-                flex: 1, padding: '8px', background: 'none',
-                border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
-                cursor: 'pointer', fontSize: 13,
-              }}>
+              className="btn-secondary"
+              style={{ flex: 1, padding: '8px', fontSize: 13 }}>
               Cancel
             </button>
           </div>

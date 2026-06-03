@@ -141,9 +141,10 @@ export async function getProfile(token: string): Promise<UserProfile> {
 
 // ─── Risk ───────────────────────────────────────────────────
 
-export async function getRiskScores(token: string): Promise<RiskScore[]> {
+export async function getRiskScores(token: string, signal?: AbortSignal): Promise<RiskScore[]> {
   const res = await axios.get(`${API_BASE}/analytics/risk-review`, {
     headers: { Authorization: `Bearer ${token}` },
+    signal,
   });
   return res.data;
 }
@@ -172,9 +173,10 @@ export async function revokeSession(sessionId: string, token: string): Promise<v
 
 // ─── Loans ──────────────────────────────────────────────────
 
-export async function getLoans(token: string): Promise<{ loans: LoanInfo[]; total: number; total_outstanding: number; total_principal: number }> {
+export async function getLoans(token: string, signal?: AbortSignal): Promise<{ loans: LoanInfo[]; total: number; total_outstanding: number; total_principal: number }> {
   const res = await axios.get(`${API_V1}/users/me/loans`, {
     headers: { Authorization: `Bearer ${token}` },
+    signal,
   });
   return res.data;
 }
@@ -236,9 +238,10 @@ export async function disableMFA(code: string, token: string): Promise<{ mfa_ena
 
 // ─── Alerts ─────────────────────────────────────────────────
 
-export async function getAlerts(token: string): Promise<{ alerts: AlertInfo[]; total: number; unread: number }> {
+export async function getAlerts(token: string, signal?: AbortSignal): Promise<{ alerts: AlertInfo[]; total: number; unread: number }> {
   const res = await axios.get(`${API_V1}/users/me/alerts`, {
     headers: { Authorization: `Bearer ${token}` },
+    signal,
   });
   return res.data;
 }
@@ -319,10 +322,11 @@ export async function getLoanSchedule(loanId: string, token: string) {
   return res.data;
 }
 
-export async function getTransactions(token: string, limit = 50) {
+export async function getTransactions(token: string, limit = 50, signal?: AbortSignal) {
   const res = await axios.get(`${API_V1}/users/me/transactions`, {
     headers: { Authorization: `Bearer ${token}` },
     params: { limit },
+    signal,
   });
   return res.data;
 }

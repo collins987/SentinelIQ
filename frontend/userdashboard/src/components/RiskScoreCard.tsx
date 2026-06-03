@@ -7,7 +7,12 @@ interface RiskScoreCardProps {
 export default function RiskScoreCard({ riskScores }: RiskScoreCardProps) {
   if (!riskScores || riskScores.length === 0) return (
     <div className="card">
-      <h2>Risk Scores</h2>
+      <div className="card-header-row">
+        <div className="card-header-copy">
+          <h2>Risk Scores</h2>
+          <p className="card-subtitle">Tracked account risk factors</p>
+        </div>
+      </div>
       <div className="empty-state">No risk scores available.</div>
     </div>
   );
@@ -26,7 +31,13 @@ export default function RiskScoreCard({ riskScores }: RiskScoreCardProps) {
 
   return (
     <div className="card">
-      <h2>Risk Scores</h2>
+      <div className="card-header-row">
+        <div className="card-header-copy">
+          <h2>Risk Scores</h2>
+          <p className="card-subtitle">Tracked account risk factors</p>
+        </div>
+        <span className="card-badge">{riskScores.length} factors</span>
+      </div>
       <div className="risk-grid">
         {riskScores.map(risk => (
           <div key={risk.id} className="risk-item">

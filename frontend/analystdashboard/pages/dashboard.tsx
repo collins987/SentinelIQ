@@ -1,10 +1,10 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { useAnalyst } from '../src/context/AnalystContext';
 import {
   getAlerts, getHighRiskUsers, getRiskInsights, listInvestigations,
   inspectUser, createInvestigation, getInvestigation,
-  updateInvestigation, addNote, addRecommendation, search as apiSearch,
+  updateInvestigation, addNote, addRecommendation, search as apiSearch, searchWithSignal,
   getOrganizationDetail,
   AlertFeedResponse, HighRiskUsersResponse, RiskInsights, InvestigationDetail,
   SearchResult, OrgDetail,
@@ -211,6 +211,8 @@ function AnalystDashboardContent() {
   const [orgFilterStatus, setOrgFilterStatus] = useState('');
   const [orgFilterRisk, setOrgFilterRisk] = useState('');
   const [orgFilterTrust, setOrgFilterTrust] = useState('');
+  const searchTimeoutRef = useRef<number | null>(null);
+  const searchControllerRef = useRef<AbortController | null>(null);
 
   // Filters
   const [alertSeverity, setAlertSeverity] = useState('');
@@ -279,8 +281,37 @@ function AnalystDashboardContent() {
   // Auto-refresh for live sections
   useEffect(() => {
     if (nav !== 'overview' && nav !== 'alerts') return;
-    const id = setInterval(loadData, 30000);
-    return () => clearInterval(id);
+
+    // Poll only when the tab is visible to reduce background API load
+    let id: number | null = null;
+
+    const startPolling = () => {
+      if (id == null) id = window.setInterval(loadData, 60000); // 60s interval
+    };
+
+    const stopPolling = () => {
+      if (id != null) {
+        clearInterval(id);
+        id = null;
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        loadData();
+        startPolling();
+      } else {
+        stopPolling();
+      }
+    };
+
+    handleVisibility();
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      stopPolling();
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [nav, loadData]);
 
   /* --- Event Handlers --- */
@@ -380,17 +411,39 @@ function AnalystDashboardContent() {
     }
   };
 
-  const handleSearch = async (q: string) => {
+  const handleSearch = (q: string) => {
     setSearchQuery(q);
+
+    // cancel prior debounce timer and inflight request
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+      searchTimeoutRef.current = null;
+    }
+    if (searchControllerRef.current) {
+      try { searchControllerRef.current.abort(); } catch (e) { /* ignore */ }
+      searchControllerRef.current = null;
+    }
+
     if (!token || q.length < 2) {
       setSearchResults([]);
       return;
     }
-    try {
-      setSearchResults((await apiSearch(token, q)).results);
-    } catch (err) {
-      console.error(err);
-    }
+
+    // debounce search input
+    searchTimeoutRef.current = window.setTimeout(async () => {
+      const controller = new AbortController();
+      searchControllerRef.current = controller;
+      try {
+        const res = await searchWithSignal(token, q, 50, controller.signal);
+        setSearchResults(res.results);
+      } catch (err: any) {
+        if (err?.name === 'CanceledError' || err?.message === 'canceled') return;
+        console.error(err);
+      } finally {
+        searchControllerRef.current = null;
+        searchTimeoutRef.current = null;
+      }
+    }, 450);
   };
 
   const flash = (msg: string, isError = false) => {
@@ -662,181 +715,285 @@ function AnalystDashboardContent() {
                     OVERVIEW ? SOC Command Center
                     ------------------------------------------------------------ */}
                 {nav === 'overview' && (
-                  <>
-                    {/* KPI Strip */}
-                    <div className="kpi-row kpi-row-6">
-                      {[
-                        { label: 'Active Alerts', value: totalAlerts, level: totalAlerts > 10 ? 'critical' : 'cyan' },
-                        { label: 'Critical', value: critAlerts, level: 'critical' },
-                        { label: 'High Risk Users', value: totalHR, level: totalHR > 5 ? 'high' : 'medium' },
-                        { label: 'Open Cases', value: openInv, level: 'info' },
-                        { label: 'Pending Actions', value: pendingRec, level: pendingRec > 0 ? 'high' : 'low' },
-                        { label: 'Avg Risk Score', value: avgRisk, level: rl(avgRisk) },
-                      ].map((k, i) => (
-                        <motion.div
-                          key={i}
-                          className={`kpi-card kpi-glow-${k.level}`}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: i * 0.07 }}
-                        >
-                          <span className="kpi-label">{k.label}</span>
-                          <span className={`kpi-value ${k.level}`}>
-                            <AnimCounter val={k.value} />
-                          </span>
-                        </motion.div>
-                      ))}
-                    </div>
+                  <div className="space-y-6">
+                    {/* KPI CARDS - Modern Grid Layout */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <motion.div
+                        className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 border border-emerald-500/30 rounded-lg p-5 cursor-pointer hover:border-emerald-500/60 transition-colors"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0 }}
+                        onClick={() => switchNav('alerts')}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-emerald-300 text-sm font-medium tracking-wide">Total Alerts</p>
+                            <p className="text-3xl font-bold text-emerald-100 mt-2"><AnimCounter val={totalAlerts} /></p>
+                          </div>
+                          <div className="text-emerald-500/40 text-4xl">🔔</div>
+                        </div>
+                      </motion.div>
 
-                    {/* Gauge Row ? 4 circular gauges */}
-                    <div className="gauge-row">
-                      <motion.div className="soc-card gauge-card" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.15 }}>
-                        <div className="soc-card-header"><span className="soc-card-title">Overall Risk Level</span></div>
-                        <div className="soc-card-body gauge-center"><ThreatGauge value={avgRisk} label="Risk Score" size={180} /></div>
+                      <motion.div
+                        className="bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/30 rounded-lg p-5 cursor-pointer hover:border-blue-500/60 transition-colors"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.1 }}
+                        onClick={() => switchNav('investigations')}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-blue-300 text-sm font-medium tracking-wide">Open Cases</p>
+                            <p className="text-3xl font-bold text-blue-100 mt-2"><AnimCounter val={openInv} /></p>
+                          </div>
+                          <div className="text-blue-500/40 text-4xl">📋</div>
+                        </div>
                       </motion.div>
-                      <motion.div className="soc-card gauge-card" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.25 }}>
-                        <div className="soc-card-header"><span className="soc-card-title">Alert Pressure</span></div>
-                        <div className="soc-card-body gauge-center"><ThreatGauge value={Math.min(totalAlerts * 5, 100)} label="Alert Load" size={180} /></div>
+
+                      <motion.div
+                        className="bg-gradient-to-br from-purple-500/20 to-purple-600/10 border border-purple-500/30 rounded-lg p-5 cursor-pointer hover:border-purple-500/60 transition-colors"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                        onClick={() => switchNav('alerts')}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-purple-300 text-sm font-medium tracking-wide">High Risk Users</p>
+                            <p className="text-3xl font-bold text-purple-100 mt-2"><AnimCounter val={totalHR} /></p>
+                          </div>
+                          <div className="text-purple-500/40 text-4xl">⚠️</div>
+                        </div>
                       </motion.div>
-                      <motion.div className="soc-card gauge-card" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.35 }}>
-                        <div className="soc-card-header"><span className="soc-card-title">Case Backlog</span></div>
-                        <div className="soc-card-body gauge-center"><ThreatGauge value={Math.min(openInv * 10, 100)} label="Active Cases" size={180} /></div>
-                      </motion.div>
-                      <motion.div className="soc-card gauge-card" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.45 }}>
-                        <div className="soc-card-header"><span className="soc-card-title">Threat Index</span></div>
-                        <div className="soc-card-body gauge-center">
-                          <ThreatGauge
-                            value={Math.min(Math.round(avgRisk * 0.6 + critAlerts * 10 + totalHR * 2), 100)}
-                            label="Composite"
-                            size={180}
-                          />
+
+                      <motion.div
+                        className="bg-gradient-to-br from-red-500/20 to-red-600/10 border border-red-500/30 rounded-lg p-5 cursor-pointer hover:border-red-500/60 transition-colors"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                        onClick={() => switchNav('insights')}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-red-300 text-sm font-medium tracking-wide">Critical Alerts</p>
+                            <p className="text-3xl font-bold text-red-100 mt-2"><AnimCounter val={critAlerts} /></p>
+                          </div>
+                          <div className="text-red-500/40 text-4xl">🔥</div>
                         </div>
                       </motion.div>
                     </div>
 
-                    {/* Charts Row */}
-                    <div className="soc-grid soc-grid-3" style={{ marginBottom: 20 }}>
-                      <div className="soc-card">
-                        <div className="soc-card-header"><span className="soc-card-title">Risk Distribution</span></div>
+                    {/* THREAT OVERVIEW - Top Bar Gauge */}
+                    <div className="soc-card">
+                      <div className="soc-card-header">
+                        <span className="soc-card-title">Threat Overview</span>
+                        <span className="text-sm text-slate-400">Real-time Security Posture</span>
+                      </div>
+                      <div className="soc-card-body">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                          <div className="flex flex-col items-center">
+                            <ThreatGauge value={avgRisk} label="Risk Score" size={140} />
+                            <p className="text-sm text-slate-400 mt-3">Overall Risk Level</p>
+                          </div>
+                          <div className="flex flex-col items-center">
+                            <ThreatGauge value={Math.min(totalAlerts * 5, 100)} label="Alerts" size={140} />
+                            <p className="text-sm text-slate-400 mt-3">Alert Pressure</p>
+                          </div>
+                          <div className="flex flex-col items-center">
+                            <ThreatGauge value={Math.min(openInv * 10, 100)} label="Cases" size={140} />
+                            <p className="text-sm text-slate-400 mt-3">Case Backlog</p>
+                          </div>
+                          <div className="flex flex-col items-center">
+                            <ThreatGauge value={Math.min(Math.round(avgRisk * 0.6 + critAlerts * 10 + totalHR * 2), 100)} label="Index" size={140} />
+                            <p className="text-sm text-slate-400 mt-3">Threat Index</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ANALYSIS SECTION - Charts Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                      {/* Risk Distribution */}
+                      <motion.div className="soc-card lg:col-span-1" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.4 }}>
+                        <div className="soc-card-header">
+                          <span className="soc-card-title text-base">Risk Distribution</span>
+                        </div>
                         <div className="soc-card-body">
-                          <div className="chart-wrapper" style={{ height: 220 }}>
+                          <div className="chart-wrapper" style={{ height: 240 }}>
                             <ResponsiveContainer>
                               <PieChart>
                                 <Pie
                                   data={[
-                                    { name: 'Low', value: insights?.risk_distribution.low || 0 },
-                                    { name: 'Medium', value: insights?.risk_distribution.medium || 0 },
-                                    { name: 'High', value: insights?.risk_distribution.high || 0 },
-                                    { name: 'Critical', value: insights?.risk_distribution.critical || 0 },
+                                    { name: 'Low', value: insights?.risk_distribution.low || 0, fill: '#10b981' },
+                                    { name: 'Medium', value: insights?.risk_distribution.medium || 0, fill: '#eab308' },
+                                    { name: 'High', value: insights?.risk_distribution.high || 0, fill: '#f97316' },
+                                    { name: 'Critical', value: insights?.risk_distribution.critical || 0, fill: '#dc2626' },
                                   ]}
                                   cx="50%"
                                   cy="50%"
-                                  innerRadius={45}
-                                  outerRadius={75}
-                                  paddingAngle={4}
+                                  innerRadius={50}
+                                  outerRadius={85}
+                                  paddingAngle={3}
                                   dataKey="value"
                                   stroke="none"
                                 >
-                                  {SEV_COLORS.map((c, i) => (
-                                    <Cell key={i} fill={c} />
+                                  {[
+                                    { name: 'Low', value: insights?.risk_distribution.low || 0, fill: '#10b981' },
+                                    { name: 'Medium', value: insights?.risk_distribution.medium || 0, fill: '#eab308' },
+                                    { name: 'High', value: insights?.risk_distribution.high || 0, fill: '#f97316' },
+                                    { name: 'Critical', value: insights?.risk_distribution.critical || 0, fill: '#dc2626' },
+                                  ].map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.fill} />
                                   ))}
                                 </Pie>
                                 <Tooltip {...TT} />
-                                <Legend wrapperStyle={{ fontSize: 11, color: '#94a3b8' }} />
+                                <Legend wrapperStyle={{ fontSize: 12, color: '#94a3b8' }} />
                               </PieChart>
                             </ResponsiveContainer>
                           </div>
                         </div>
-                      </div>
+                      </motion.div>
 
-                      <div className="soc-card">
-                        <div className="soc-card-header"><span className="soc-card-title">Case Status</span></div>
+                      {/* Case Status */}
+                      <motion.div className="soc-card lg:col-span-1" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.5 }}>
+                        <div className="soc-card-header">
+                          <span className="soc-card-title text-base">Case Status</span>
+                        </div>
                         <div className="soc-card-body">
-                          <div className="chart-wrapper" style={{ height: 220 }}>
+                          <div className="chart-wrapper" style={{ height: 240 }}>
                             <ResponsiveContainer>
                               <PieChart>
-                                <Pie data={statusData} cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={4} dataKey="value" stroke="none">
-                                  {STATUS_COLORS.map((c, i) => (
-                                    <Cell key={i} fill={c} />
+                                <Pie
+                                  data={[
+                                    { name: 'Open', value: investigations?.investigations?.filter((i: any) => i.status === 'open').length || 0, fill: '#3b82f6' },
+                                    { name: 'Monitoring', value: investigations?.investigations?.filter((i: any) => i.status === 'monitoring').length || 0, fill: '#eab308' },
+                                    { name: 'Escalated', value: investigations?.investigations?.filter((i: any) => i.status === 'escalated').length || 0, fill: '#f97316' },
+                                    { name: 'Closed', value: investigations?.investigations?.filter((i: any) => i.status === 'closed').length || 0, fill: '#6b7280' },
+                                  ]}
+                                  cx="50%"
+                                  cy="50%"
+                                  innerRadius={50}
+                                  outerRadius={85}
+                                  paddingAngle={3}
+                                  dataKey="value"
+                                  stroke="none"
+                                >
+                                  {[
+                                    { name: 'Open', fill: '#3b82f6' },
+                                    { name: 'Monitoring', fill: '#eab308' },
+                                    { name: 'Escalated', fill: '#f97316' },
+                                    { name: 'Closed', fill: '#6b7280' },
+                                  ].map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.fill} />
                                   ))}
                                 </Pie>
                                 <Tooltip {...TT} />
-                                <Legend wrapperStyle={{ fontSize: 11, color: '#94a3b8' }} />
+                                <Legend wrapperStyle={{ fontSize: 12, color: '#94a3b8' }} />
                               </PieChart>
                             </ResponsiveContainer>
                           </div>
                         </div>
-                      </div>
+                      </motion.div>
 
-                      <div className="soc-card">
-                        <div className="soc-card-header"><span className="soc-card-title">Severity Monitor</span></div>
+                      {/* Severity Monitor */}
+                      <motion.div className="soc-card lg:col-span-1" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.6 }}>
+                        <div className="soc-card-header">
+                          <span className="soc-card-title text-base">Severity Monitor</span>
+                        </div>
                         <div className="soc-card-body">
-                          <div className="chart-wrapper" style={{ height: 220 }}>
+                          <div className="chart-wrapper" style={{ height: 240 }}>
                             <ResponsiveContainer>
-                              <RadialBarChart innerRadius="20%" outerRadius="90%" data={sevRadial} startAngle={180} endAngle={-180} barSize={10}>
-                                <RadialBar background={{ fill: '#1e293b' }} dataKey="value" cornerRadius={6} />
+                              <RadialBarChart innerRadius="30%" outerRadius="90%" data={sevRadial} startAngle={180} endAngle={-180} barSize={12}>
+                                <RadialBar background={{ fill: '#1e293b' }} dataKey="value" cornerRadius={8} />
                                 <Tooltip {...TT} />
-                                <Legend wrapperStyle={{ fontSize: 11, color: '#94a3b8' }} />
                               </RadialBarChart>
                             </ResponsiveContainer>
                           </div>
                         </div>
-                      </div>
+                      </motion.div>
                     </div>
 
-                    {/* Alerts + Watchlist */}
-                    <div className="soc-grid soc-grid-sidebar" style={{ marginBottom: 20 }}>
-                      <div className="soc-card">
+                    {/* ALERTS & WATCHLIST Section */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                      {/* Recent Alerts */}
+                      <motion.div className="soc-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }}>
                         <div className="soc-card-header">
                           <span className="soc-card-title">Recent Alerts</span>
-                          <button className="btn btn-ghost btn-sm" onClick={() => switchNav('alerts')}>View All ?</button>
+                          <button className="text-xs bg-slate-700/50 hover:bg-slate-600 text-slate-300 px-3 py-1 rounded transition-colors" onClick={() => switchNav('alerts')}>View All →</button>
                         </div>
-                        <div className="alert-feed">
+                        <div className="alert-feed" style={{ maxHeight: 400, overflowY: 'auto' }}>
                           {(alerts?.alerts || []).slice(0, 8).map((a) => (
-                            <div key={a.id} className="alert-item" onClick={() => a.user_id && handleInspect(a.user_id)}>
+                            <div key={a.id} className="alert-item cursor-pointer hover:bg-slate-800/50 transition-colors" onClick={() => a.user_id && handleInspect(a.user_id)}>
                               <div className={`alert-severity-dot ${a.severity}`} />
-                              <div className="alert-content">
-                                <div className="alert-title">{a.title}</div>
-                                <div className="alert-message">{a.message}</div>
-                                <div className="alert-meta">
-                                  <span>{a.alert_type.replace(/_/g, ' ')}</span>
-                                  <span>{timeAgo(a.timestamp)}</span>
+                              <div className="alert-content flex-1">
+                                <div className="alert-title text-sm font-semibold">{a.title}</div>
+                                <div className="alert-message text-xs text-slate-400 line-clamp-1">{a.message}</div>
+                                <div className="alert-meta text-xs mt-1">
+                                  <span className="text-slate-500">{a.alert_type.replace(/_/g, ' ')}</span>
+                                  <span className="text-slate-600 ml-2">{timeAgo(a.timestamp)}</span>
                                 </div>
                               </div>
                               {a.risk_score != null && (
-                                <span className={`alert-risk-badge ${rl(a.risk_score)}`}>{a.risk_score}</span>
+                                <span className={`alert-risk-badge text-xs font-bold px-2 py-1 rounded ${rl(a.risk_score) === 'critical' ? 'bg-red-900/50 text-red-300' : rl(a.risk_score) === 'high' ? 'bg-orange-900/50 text-orange-300' : 'bg-slate-700/50 text-slate-300'}`}>{Math.round(a.risk_score)}</span>
                               )}
                             </div>
                           ))}
                           {(!alerts || alerts.alerts.length === 0) && (
-                            <div className="empty-state">
-                              <div className="empty-state-icon">?</div>
-                              <div className="empty-state-text">All clear ? no active alerts</div>
+                            <div className="text-center py-8 text-slate-500">
+                              <p className="text-sm">✓ All clear - no active alerts</p>
                             </div>
                           )}
                         </div>
-                      </div>
+                      </motion.div>
 
-                      <div className="soc-card">
-                        <div className="soc-card-header"><span className="soc-card-title">Watchlist</span></div>
-                        <div className="soc-card-body" style={{ padding: 0 }}>
+                      {/* Watchlist */}
+                      <motion.div className="soc-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }}>
+                        <div className="soc-card-header">
+                          <span className="soc-card-title">Watchlist</span>
+                          <span className="text-xs text-slate-400">{highRiskUsers?.total || 0} users</span>
+                        </div>
+                        <div className="alert-feed" style={{ maxHeight: 400, overflowY: 'auto' }}>
                           {(highRiskUsers?.users || []).slice(0, 10).map((u) => (
-                            <div key={u.id} className="alert-item" onClick={() => handleInspect(u.id)}>
+                            <div key={u.id} className="alert-item cursor-pointer hover:bg-slate-800/50 transition-colors" onClick={() => handleInspect(u.id)}>
                               <div className={`alert-severity-dot ${rl(u.risk_score)}`} />
-                              <div className="alert-content">
-                                <div className="alert-title">{u.first_name} {u.last_name}</div>
-                                <div className="alert-meta"><span>{u.email}</span></div>
+                              <div className="alert-content flex-1">
+                                <div className="alert-title text-sm font-semibold">{u.first_name} {u.last_name}</div>
+                                <div className="alert-meta text-xs text-slate-400">
+                                  <span>{u.email}</span>
+                                  <span className="ml-2">{u.trust_level.replace(/_/g, ' ')}</span>
+                                </div>
                               </div>
-                              <span className={`alert-risk-badge ${rl(u.risk_score)}`}>{u.risk_score}</span>
+                              <span className={`alert-risk-badge text-xs font-bold px-2 py-1 rounded ${rl(u.risk_score) === 'critical' ? 'bg-red-900/50 text-red-300' : rl(u.risk_score) === 'high' ? 'bg-orange-900/50 text-orange-300' : 'bg-slate-700/50 text-slate-300'}`}>{Math.round(u.risk_score)}</span>
                             </div>
                           ))}
                           {(!highRiskUsers || highRiskUsers.users.length === 0) && (
-                            <div className="empty-state"><div className="empty-state-text">No users on watchlist</div></div>
+                            <div className="text-center py-8 text-slate-500">
+                              <p className="text-sm">No users on watchlist</p>
+                            </div>
                           )}
                         </div>
+                      </motion.div>
+                    </div>
+
+                    {/* QUICK INSIGHTS Summary Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-4">
+                        <p className="text-slate-400 text-sm mb-2">Pending Actions</p>
+                        <p className="text-2xl font-bold text-slate-200"><AnimCounter val={pendingRec} /></p>
+                        <p className="text-xs text-slate-500 mt-2">Recommendations awaiting implementation</p>
+                      </div>
+                      <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-4">
+                        <p className="text-slate-400 text-sm mb-2">Risk Score</p>
+                        <p className="text-2xl font-bold text-slate-200">{Math.round(avgRisk)}</p>
+                        <p className="text-xs text-slate-500 mt-2">Organization average</p>
+                      </div>
+                      <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-4">
+                        <p className="text-slate-400 text-sm mb-2">Alert Categories</p>
+                        <p className="text-2xl font-bold text-slate-200">{alerts ? Object.keys(alerts.categories).length : 0}</p>
+                        <p className="text-xs text-slate-500 mt-2">Active alert sources</p>
                       </div>
                     </div>
-                  </>
+                  </div>
                 )}
 
                 {/* ------------------------------------------------------------

@@ -64,7 +64,7 @@ export default function ProfileCard({ user }: { user: any }) {
       </div>
 
       {/* Info grid */}
-      <div className="profile-grid" style={{ padding: '1.2rem 1.4rem' }}>
+      <div className="profile-grid">
         <div className="profile-field">
           <span className="profile-label">Email</span>
           <span className="profile-value">{user.email}</span>

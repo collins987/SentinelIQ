@@ -50,7 +50,13 @@ export default function RiskBreakdownCard({ riskScore, breakdown, trustLevel }: 
 
   return (
     <div className="card">
-      <h2>Risk Overview</h2>
+      <div className="card-header-row">
+        <div className="card-header-copy">
+          <h2>Risk Overview</h2>
+          <p className="card-subtitle">Current score, trust level, and domain breakdown</p>
+        </div>
+        <span className="card-badge" style={{ color: levelColor }}>{level}</span>
+      </div>
 
       {/* Total score + trust level */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>

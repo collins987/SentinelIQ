@@ -114,9 +114,10 @@ export interface SearchResult {
 // Auth
 // ═══════════════════════════════════════════════════════════════
 
+const authBase = process.env.NEXT_PUBLIC_AUTH_URL || 'http://localhost:8000';
+
 export async function loginAnalyst(email: string, password: string) {
-  const base = process.env.NEXT_PUBLIC_AUTH_URL || 'http://localhost:8000';
-  const res = await axios.post(`${base}/auth/login`, { email, password });
+  const res = await axios.post(`${authBase}/auth/login`, { email, password });
   return res.data;
 }
 
@@ -127,8 +128,7 @@ export async function registerAnalyst(
   password: string,
   org_id?: string
 ) {
-  const base = process.env.NEXT_PUBLIC_AUTH_URL || 'http://localhost:8000';
-  const res = await axios.post(`${base}/auth/register`, {
+  const res = await axios.post(`${authBase}/auth/register`, {
     first_name,
     last_name,
     email,
@@ -140,8 +140,7 @@ export async function registerAnalyst(
 }
 
 export async function getProfile(token: string) {
-  const base = process.env.NEXT_PUBLIC_AUTH_URL || 'http://localhost:8000';
-  const res = await axios.get(`${base}/auth/me`, { headers: headers(token) });
+  const res = await axios.get(`${authBase}/auth/me`, { headers: headers(token) });
   return res.data;
 }
 
@@ -337,6 +336,21 @@ export async function search(
   const res = await axios.get(`${API_BASE}/search`, {
     headers: headers(token),
     params: { q: query, limit },
+  });
+  return res.data;
+}
+
+// Backwards-compatible search with AbortSignal support
+export async function searchWithSignal(
+  token: string,
+  query: string,
+  limit?: number,
+  signal?: AbortSignal
+): Promise<{ results: SearchResult[]; total: number; query: string }> {
+  const res = await axios.get(`${API_BASE}/search`, {
+    headers: headers(token),
+    params: { q: query, limit },
+    signal,
   });
   return res.data;
 }

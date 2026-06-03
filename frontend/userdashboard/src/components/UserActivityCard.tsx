@@ -26,7 +26,13 @@ export default function UserActivityCard({ activity, session }: UserActivityCard
 
   return (
     <div className="card">
-      <h2>Activity & Sessions</h2>
+      <div className="card-header-row">
+        <div className="card-header-copy">
+          <h2>Activity & Sessions</h2>
+          <p className="card-subtitle">Recent usage signals and session health</p>
+        </div>
+        <span className="card-badge">{session.active_sessions} active</span>
+      </div>
       <div className="activity-stats">
         <div className="activity-stat">
           <div className="activity-stat-label">Active Sessions</div>
